@@ -11,7 +11,7 @@ This guide details the complete, IT-industry standard deployment of **CodeSentin
 |                                    PRODUCTION CLOUD TOPOLOGY                                  |
 +-----------------------------------------------------------------------------------------------+
 |  FRONTEND (Vercel)          | https://codesentinel.vercel.app                                 |
-|  BACKEND GATEWAY (Render)   | https://codesentinel-backend.onrender.com                       |
+|  BACKEND GATEWAY (Render)   | https://codesentinel-backend-uc5g.onrender.com                  |
 |  AI WORKER PLANE (Render)   | https://codesentinel-ai-engine.onrender.com                      |
 |  DATABASE (MongoDB Atlas)   | mongodb+srv://<cluster>.mongodb.net/codesentinel                |
 +-----------------------------------------------------------------------------------------------+
@@ -64,7 +64,7 @@ This guide details the complete, IT-industry standard deployment of **CodeSentin
    | `GITHUB_TOKEN` | `ghp_your_github_token` | GitHub Personal Access Token |
    | `JWT_SECRET` | `your_32_char_secure_random_jwt_key` | Session JWT Secret |
    | `API_KEY` | `cs_live_devsecops_key_enterprise_2026` | Enterprise Service Key |
-5. Click **Deploy Web Service** and copy your URL (e.g. `https://codesentinel-backend.onrender.com`).
+5. Click **Deploy Web Service** and copy your URL (`https://codesentinel-backend-uc5g.onrender.com`).
 
 ---
 
@@ -80,7 +80,7 @@ This guide details the complete, IT-industry standard deployment of **CodeSentin
 4. In **Environment Variables**, add:
    | Key | Value |
    | :--- | :--- |
-   | `VITE_BACKEND_URL` | `https://codesentinel-backend.onrender.com` |
+   | `VITE_BACKEND_URL` | `https://codesentinel-backend-uc5g.onrender.com` |
 5. Click **Deploy**. Vercel will build and publish your site at `https://<your-project>.vercel.app`.
 
 ---
@@ -100,7 +100,7 @@ If you wish to configure Google Sign-In (SSO) or automated Gmail alerts for crit
    - `https://your-app.vercel.app` (Your Vercel URL)
 7. **Authorized Redirect URIs**:
    - `http://localhost:5000/api/auth/google/callback`
-   - `https://codesentinel-backend.onrender.com/api/auth/google/callback` (Your Render Backend URL)
+   - `https://codesentinel-backend-uc5g.onrender.com/api/auth/google/callback` (Your Render Backend URL)
 8. Click **Create** and copy your:
    - `GOOGLE_CLIENT_ID`
    - `GOOGLE_CLIENT_SECRET`
@@ -122,7 +122,7 @@ To send email alerts when a PR has hardcoded secrets or critical RBAC bypasses:
 ## 5. GitHub Webhook Configuration on Your Repository
 
 1. In your GitHub repository -> **Settings** -> **Webhooks** -> **Add webhook**.
-2. **Payload URL**: `https://codesentinel-backend.onrender.com/api/webhooks/github`
+2. **Payload URL**: `https://codesentinel-backend-uc5g.onrender.com/api/webhooks/github`
 3. **Content type**: `application/json`
 4. **Secret**: The secret matching `GITHUB_WEBHOOK_SECRET` (e.g. `your_webhook_secret`).
 5. **Which events would you like to trigger this webhook?**:

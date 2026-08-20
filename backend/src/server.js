@@ -54,7 +54,23 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true }));
 
-// Health Check
+// Root & Health Check Endpoints (for Render uptime & health probes)
+app.get('/', (req, res) => {
+  res.json({
+    status: 'OPERATIONAL',
+    service: 'CodeSentinel Control Plane Ingestion Gateway',
+    version: '1.0.0 Enterprise',
+    environment: config.nodeEnv,
+    aiEngineUrl: config.aiEngineUrl,
+    health: '/health',
+    api: '/api/metrics'
+  });
+});
+
+app.head('/', (req, res) => {
+  res.status(200).end();
+});
+
 app.get('/health', (req, res) => {
   res.json({
     status: 'HEALTHY',
