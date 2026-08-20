@@ -10,7 +10,7 @@ This guide details the complete, IT-industry standard deployment of **CodeSentin
 +-----------------------------------------------------------------------------------------------+
 |                                    PRODUCTION CLOUD TOPOLOGY                                  |
 +-----------------------------------------------------------------------------------------------+
-|  FRONTEND (Vercel)          | https://codesentinel.vercel.app                                 |
+|  FRONTEND (Vercel)          | https://code-sentinel-ten.vercel.app                            |
 |  BACKEND GATEWAY (Render)   | https://codesentinel-backend-uc5g.onrender.com                  |
 |  AI WORKER PLANE (Render)   | https://codesentinel-ai-engine.onrender.com                      |
 |  DATABASE (MongoDB Atlas)   | mongodb+srv://<cluster>.mongodb.net/codesentinel                |
