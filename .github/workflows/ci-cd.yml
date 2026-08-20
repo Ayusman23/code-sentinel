@@ -1,0 +1,60 @@
+name: CodeSentinel CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  ai-engine-tests:
+    name: AI Worker Plane Tests (Pytest & AST)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install AI Engine dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r ai-engine/requirements.txt
+      - name: Run Pytest Test Suite
+        run: |
+          python -m pytest ai-engine/tests -v
+
+  backend-tests:
+    name: Backend Gateway Verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      - name: Install Gateway dependencies
+        run: |
+          cd backend
+          npm ci || npm install
+      - name: Verify Gateway syntax & build
+        run: |
+          cd backend
+          node -e "require('./src/config/index.js'); console.log('Backend config verified');"
+
+  frontend-build:
+    name: Frontend Dashboard Build Verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build Frontend Cyber Dashboard
+        run: |
+          cd frontend
+          npm ci || npm install
+          npm run build
