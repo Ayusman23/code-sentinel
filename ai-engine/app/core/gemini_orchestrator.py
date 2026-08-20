@@ -15,23 +15,42 @@ logger = logging.getLogger("codesentinel.gemini")
 class GeminiOrchestrator:
     """
     Structured Prompt Orchestrator leveraging Google Gemini API.
+    Supports Multi-API Key Pooling & Automatic Rate-Limit Failover.
     Transforms raw code diffs and contextual AST analysis into structured,
     test-compliant remediations with committable GitHub Markdown suggestions.
     """
 
     def __init__(self):
         self.settings = get_settings()
-        self.api_key = self.settings.GEMINI_API_KEY
-        self.is_configured = bool(self.api_key and not self.api_key.startswith("your_"))
+        raw_keys = self.settings.GEMINI_API_KEY
+        # Support comma-separated pool of keys: key1,key2,key3
+        self.api_keys = [
+            k.strip() for k in raw_keys.split(",")
+            if k.strip() and not k.strip().startswith("your_")
+        ]
+        self.current_key_idx = 0
+        self.is_configured = len(self.api_keys) > 0
         
         if self.is_configured:
-            try:
-                genai.configure(api_key=self.api_key)
-                self.model = genai.GenerativeModel(self.settings.GEMINI_MODEL)
-                logger.info(f"Gemini API initialized with model {self.settings.GEMINI_MODEL}")
-            except Exception as e:
-                logger.warning(f"Failed to initialize Gemini API: {e}. Fallback heuristics active.")
-                self.is_configured = False
+            self._configure_active_key()
+
+    def _configure_active_key(self):
+        active_key = self.api_keys[self.current_key_idx]
+        try:
+            genai.configure(api_key=active_key)
+            self.model = genai.GenerativeModel(self.settings.GEMINI_MODEL)
+            logger.info(f"Gemini API key pool active: using key #{self.current_key_idx + 1} of {len(self.api_keys)} with model {self.settings.GEMINI_MODEL}")
+        except Exception as e:
+            logger.warning(f"Failed to configure Gemini key #{self.current_key_idx + 1}: {e}")
+
+    def rotate_key(self) -> bool:
+        """Rotates to next available key in pool on rate-limit (429)"""
+        if len(self.api_keys) > 1:
+            self.current_key_idx = (self.current_key_idx + 1) % len(self.api_keys)
+            self._configure_active_key()
+            logger.info(f"Rotated to Gemini API key #{self.current_key_idx + 1}")
+            return True
+        return False
 
     async def analyze(
         self,
@@ -43,13 +62,19 @@ class GeminiOrchestrator:
         context: Optional[RepoContext] = None
     ) -> Dict[str, Any]:
         """
-        Executes Gemini LLM analysis or deterministic rule-based fallback.
+        Executes Gemini LLM analysis with automatic key rotation or deterministic rule-based fallback.
         """
         if self.is_configured:
-            try:
-                return await self._run_gemini_analysis(files, sanitized_diffs, ast_data, rbac_issues, secrets, context)
-            except Exception as e:
-                logger.error(f"Gemini API invocation failed: {e}. Utilizing deterministic fallback engine.")
+            attempts = len(self.api_keys)
+            for attempt in range(attempts):
+                try:
+                    return await self._run_gemini_analysis(files, sanitized_diffs, ast_data, rbac_issues, secrets, context)
+                except Exception as e:
+                    logger.warning(f"Gemini API key #{self.current_key_idx + 1} attempt failed: {e}")
+                    if self.rotate_key():
+                        logger.info(f"Retrying prompt with rotated key #{self.current_key_idx + 1}...")
+                        continue
+                    break
 
         # Fallback Heuristic & Rule-based Generator
         return self._run_heuristic_generator(files, sanitized_diffs, ast_data, rbac_issues, secrets, context)
