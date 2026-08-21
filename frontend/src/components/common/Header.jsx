@@ -1,19 +1,22 @@
 import React from 'react';
-import { Shield, Radio, Cpu, GitPullRequest, Code2, Play, FileText } from 'lucide-react';
+import { Shield, Cpu, GitPullRequest, Code2, Play, FileText } from 'lucide-react';
 import { useSocket } from '../../context/SocketContext';
 import { useAuth } from '../../context/AuthContext';
 
 export const Header = ({ activeTab, setActiveTab }) => {
   const { isConnected } = useSocket();
-  const { role, setRole } = useAuth();
+  const { role, setRole, currentRoleConfig, isTabAllowed } = useAuth();
 
-  const tabs = [
+  const allTabs = [
     { id: 'command-center', label: 'Command Center', icon: Cpu },
     { id: 'pr-reviews', label: 'PR Triage Matrix', icon: GitPullRequest },
     { id: 'diff-sandbox', label: 'Diff Sandbox', icon: Code2 },
     { id: 'github-simulator', label: 'PR Simulator', icon: Play },
     { id: 'audit-logs', label: 'Audit Telemetry', icon: FileText }
   ];
+
+  // Dynamically filter tabs based on active role permissions
+  const visibleTabs = allTabs.filter(tab => isTabAllowed(tab.id));
 
   return (
     <header className="sticky top-0 z-50 bg-cyber-card border-b border-cyber-border px-6 py-3">
@@ -28,9 +31,9 @@ export const Header = ({ activeTab, setActiveTab }) => {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold tracking-tight text-cyber-text font-mono">CodeSentinel</span>
-                <span className="px-1.5 py-0.2 text-[10px] font-mono text-cyber-muted bg-cyber-bg rounded border border-cyber-border">v1.0 ENTERPRISE</span>
+                <span className="px-1.5 py-0.2 text-[10px] font-mono text-cyber-muted bg-cyber-bg rounded border border-cyber-border">v2.0 ZERO-TRUST</span>
               </div>
-              <p className="text-[10px] text-cyber-muted tracking-wider uppercase font-mono">AI DevSecOps Agent</p>
+              <p className="text-[10px] text-cyber-muted tracking-wider uppercase font-mono">AI DevSecOps Platform</p>
             </div>
           </div>
 
@@ -45,9 +48,9 @@ export const Header = ({ activeTab, setActiveTab }) => {
           </div>
         </div>
 
-        {/* Navigation Tabs */}
+        {/* Navigation Tabs (Filtered by Role) */}
         <nav className="flex items-center gap-1 bg-cyber-bg p-1 rounded border border-cyber-border">
-          {tabs.map((tab) => {
+          {visibleTabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
@@ -68,20 +71,23 @@ export const Header = ({ activeTab, setActiveTab }) => {
         </nav>
 
         {/* Role Scoped Governance Selector */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-cyber-muted font-mono uppercase">Role:</span>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              aria-label="Role"
-              className="bg-cyber-bg border border-cyber-border rounded px-2.5 py-1 text-xs font-mono text-cyber-text focus:border-cyber-accent focus:outline-none cursor-pointer"
-            >
-              <option value="ADMIN">SecOps Lead (Admin)</option>
-              <option value="SECURITY_ENGINEER">Security Engineer</option>
-              <option value="DEVELOPER">Developer (Read-Only)</option>
-            </select>
-          </div>
+        <div className="flex items-center gap-2.5">
+          <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider border ${currentRoleConfig.badgeClass}`}>
+            {currentRoleConfig.shortName}
+          </span>
+          <select
+            value={role}
+            onChange={(e) => {
+              const newRole = e.target.value;
+              setRole(newRole);
+            }}
+            aria-label="User Role"
+            className="bg-cyber-bg border border-cyber-border rounded px-2.5 py-1 text-xs font-mono text-cyber-text focus:border-cyber-accent focus:outline-none cursor-pointer"
+          >
+            <option value="ADMIN">SecOps Lead (Admin)</option>
+            <option value="SECURITY_ENGINEER">Security Engineer</option>
+            <option value="DEVELOPER">Developer (Read-Only)</option>
+          </select>
         </div>
 
       </div>

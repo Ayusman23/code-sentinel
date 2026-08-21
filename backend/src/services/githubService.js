@@ -1,61 +1,144 @@
 const { Octokit } = require('@octokit/rest');
+const { createAppAuth } = require('@octokit/auth-app');
 const config = require('../config');
+const DiffParser = require('../utils/diffParser');
 
 /**
- * Enterprise GitHub Octokit Integration Service
- * Manages Check Runs, Inline Review Comments, and Executive Badging.
+ * Enterprise GitHub Service with Zero-Trust GitHub App Authentication
+ * Supports Dynamic Installation Token generation, Diff Token Budgeting, and Inline Reviews.
  */
 class GitHubService {
   constructor() {
-    this.octokit = new Octokit({
-      auth: config.githubToken || undefined,
-      userAgent: 'CodeSentinel-DevSecOps/1.0'
+    this.appId = config.githubAppId;
+    this.privateKey = this._formatPrivateKey(config.githubPrivateKey);
+    this.staticToken = config.githubToken;
+    this.installationClients = new Map();
+  }
+
+  /**
+   * Helper to format private key from env (handles raw PEM or escaped newlines)
+   */
+  _formatPrivateKey(key) {
+    if (!key) return null;
+    let formatted = key.trim();
+    if (formatted.includes('\\n')) {
+      formatted = formatted.replace(/\\n/g, '\n');
+    }
+    return formatted;
+  }
+
+  /**
+   * Returns an authenticated Octokit client for a specific repository installation
+   * Falls back gracefully to static token or mock mode if App credentials are not present.
+   * @param {number|string} [installationId] GitHub App Installation ID
+   */
+  getOctokit(installationId) {
+    const instId = installationId || config.githubInstallationId;
+
+    // 1. Zero-Trust GitHub App Authentication with Installation Token
+    if (this.appId && this.privateKey && instId) {
+      const cacheKey = `inst_${instId}`;
+      if (this.installationClients.has(cacheKey)) {
+        return this.installationClients.get(cacheKey);
+      }
+
+      const client = new Octokit({
+        authStrategy: createAppAuth,
+        auth: {
+          appId: this.appId,
+          privateKey: this.privateKey,
+          installationId: parseInt(instId, 10)
+        },
+        userAgent: 'CodeSentinel-DevSecOps/2.0 (GitHub-App-ZeroTrust)'
+      });
+
+      this.installationClients.set(cacheKey, client);
+      return client;
+    }
+
+    // 2. Static GitHub PAT Authentication Fallback
+    if (this.staticToken) {
+      return new Octokit({
+        auth: this.staticToken,
+        userAgent: 'CodeSentinel-DevSecOps/2.0 (PAT-Fallback)'
+      });
+    }
+
+    // 3. Unauthenticated / Mock Client for Local Testing
+    return new Octokit({
+      userAgent: 'CodeSentinel-DevSecOps/2.0 (Mock-Testing)'
     });
   }
 
   /**
-   * Fetches changed files and patch diffs for a pull request
+   * Fetches changed files, strips lockfiles/binaries, and chunks massive patches
+   * @param {string} owner
+   * @param {string} repo
+   * @param {number} pull_number
+   * @param {number} [installationId]
+   * @returns {Promise<{ actionableFiles: Array, ignoredFiles: Array }>}
    */
-  async fetchPRFiles(owner, repo, pull_number) {
-    if (!config.githubToken) {
-      // Mock files for simulator / offline testing
-      return [
+  async fetchPRFiles(owner, repo, pull_number, installationId = null) {
+    const octokit = this.getOctokit(installationId);
+
+    if (!this.staticToken && !this.privateKey) {
+      // Mock files for simulator & test mode
+      const mockRawFiles = [
         {
           filename: 'src/controllers/paymentController.js',
           status: 'modified',
           patch: '@@ -12,4 +12,6 @@\n+ router.post("/charge", async (req, res) => {\n+   const key = "AKIAIOSFODNN7EXAMPL9";\n+   res.send({ status: "paid" });\n+ });',
           additions: 4,
           deletions: 0
+        },
+        {
+          filename: 'package-lock.json',
+          status: 'modified',
+          patch: '@@ -1,5 +1,5 @@\n-  "version": "1.0.0"\n+  "version": "1.0.1"',
+          additions: 1,
+          deletions: 1
         }
       ];
+
+      return DiffParser.filterAndChunkDiffs(mockRawFiles);
     }
 
     try {
-      const response = await this.octokit.pulls.listFiles({
+      const response = await octokit.pulls.listFiles({
         owner,
         repo,
         pull_number,
         per_page: 100
       });
 
-      return response.data.map(f => ({
+      const rawFiles = response.data.map(f => ({
         filename: f.filename,
-        old_path: f.previous_filename,
+        old_path: f.previous_filename || null,
         status: f.status,
         patch: f.patch || '',
-        additions: f.additions,
-        deletions: f.deletions
+        additions: f.additions || 0,
+        deletions: f.deletions || 0
       }));
+
+      return DiffParser.filterAndChunkDiffs(rawFiles);
+
     } catch (err) {
-      console.warn(`[GitHubService] Failed to fetch PR files: ${err.message}. Using provided payload.`);
-      return [];
+      console.warn(`[GitHubService] listFiles failed for ${owner}/${repo}#${pull_number}: ${err.message}. Using empty diff list.`);
+      return { actionableFiles: [], ignoredFiles: [], totalAdditions: 0, totalDeletions: 0 };
     }
   }
 
   /**
    * Posts inline code review comments with committable suggestions
+   * @param {string} owner
+   * @param {string} repo
+   * @param {number} pull_number
+   * @param {string} commit_id
+   * @param {Object} reviewResult
+   * @param {number} [installationId]
    */
-  async postInlineReview(owner, repo, pull_number, commit_id, reviewResult) {
+  async postInlineReview(owner, repo, pull_number, commit_id, reviewResult, installationId = null) {
+    const octokit = this.getOctokit(installationId);
     const comments = [];
 
     // 1. Build inline comments from remediations
@@ -77,11 +160,10 @@ class GitHubService {
       : (reviewResult.overall_risk === 'MEDIUM' ? '🟡 **COMMENT** - Medium Risk Surface' : '🟢 **APPROVE** - Clean PR Verified');
 
     const reviewEvent = reviewResult.overall_risk === 'CRITICAL' ? 'REQUEST_CHANGES' : 'COMMENT';
-
     const executiveMarkdown = this.buildExecutiveSummaryMarkdown(reviewResult);
 
-    if (!config.githubToken) {
-      console.log(`[GitHubService (Mock Mode)] Would post review to ${owner}/${repo}#${pull_number}: ${reviewEvent} with ${comments.length} inline comments.`);
+    if (!this.staticToken && !this.privateKey) {
+      console.log(`[GitHubService (Simulation Mode)] Review prepared for ${owner}/${repo}#${pull_number}: ${reviewEvent} with ${comments.length} inline comments.`);
       return {
         id: `mock-review-${Date.now()}`,
         html_url: `https://github.com/${owner}/${repo}/pull/${pull_number}#pullrequestreview-mock`,
@@ -91,14 +173,14 @@ class GitHubService {
     }
 
     try {
-      const response = await this.octokit.pulls.createReview({
+      const response = await octokit.pulls.createReview({
         owner,
         repo,
         pull_number,
-        commit_id,
+        commit_id: commit_id || undefined,
         event: reviewEvent,
         body: `${summaryBadge}\n\n${executiveMarkdown}`,
-        comments: comments.slice(0, 20) // Limit to top 20 comments to avoid GitHub API limits
+        comments: comments.slice(0, 15) // Limit comments to top 15 to stay within GitHub rate limits
       });
 
       return {
@@ -108,7 +190,7 @@ class GitHubService {
         executiveMarkdown
       };
     } catch (err) {
-      console.error(`[GitHubService] Error posting PR review: ${err.message}`);
+      console.error(`[GitHubService] Error posting PR review for ${owner}/${repo}#${pull_number}: ${err.message}`);
       return { error: err.message, commentsCount: comments.length, executiveMarkdown };
     }
   }
@@ -147,7 +229,7 @@ class GitHubService {
 * **Cyclomatic Complexity Delta:** \`+${blast.breakdown?.cyclomatic_delta || 0}\`
 
 ---
-*Generated by CodeSentinel AI DevSecOps Platform in ${reviewResult.execution_time_ms || 0}ms.*
+*Generated by CodeSentinel Zero-Trust AI DevSecOps Agent in ${reviewResult.execution_time_ms || 0}ms.*
 `;
   }
 }

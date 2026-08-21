@@ -9,6 +9,8 @@ import { GitHubPRSimulator } from './components/github/GitHubPRSimulator';
 import { AuditMatrix } from './components/audit/AuditMatrix';
 import { getMetrics, getReviews } from './services/api';
 import { useSocket } from './context/SocketContext';
+import { useAuth } from './context/AuthContext';
+import { ShieldCheck, Info } from 'lucide-react';
 
 export function App() {
   const [activeTab, setActiveTab] = useState('command-center');
@@ -16,6 +18,7 @@ export function App() {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(false);
   const { triageEvents } = useSocket();
+  const { role, currentRoleConfig, isTabAllowed } = useAuth();
 
   const loadData = async () => {
     setLoading(true);
@@ -37,6 +40,13 @@ export function App() {
     loadData();
   }, []);
 
+  // Ensure active tab matches role permissions when switching roles
+  useEffect(() => {
+    if (!isTabAllowed(activeTab)) {
+      setActiveTab('command-center');
+    }
+  }, [role, activeTab, isTabAllowed]);
+
   // Reload reviews when a PR triage completes via Socket
   useEffect(() => {
     if (triageEvents.length > 0 && triageEvents[0].stage === 'COMPLETED') {
@@ -52,7 +62,19 @@ export function App() {
       {/* Main Viewport Content */}
       <main className="max-w-7xl w-full mx-auto p-6 space-y-6 flex-1">
         
-        {/* Real-Time Triage HUD (Always visible on Command Center and PR views) */}
+        {/* Role Scoped Status Banner */}
+        <div className="p-3 rounded panel border border-cyber-border flex items-center justify-between text-xs font-mono">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-cyber-accent" />
+            <span className="text-cyber-text font-bold">Active Role: {currentRoleConfig.name}</span>
+            <span className="text-cyber-muted hidden sm:inline">— {currentRoleConfig.description}</span>
+          </div>
+          <span className="text-[10px] text-cyber-muted uppercase tracking-wider hidden md:inline">
+            Permissions: {currentRoleConfig.permissions.slice(0, 3).join(', ')}
+          </span>
+        </div>
+
+        {/* Real-Time Triage HUD (Visible on Command Center and PR views) */}
         {(activeTab === 'command-center' || activeTab === 'pr-reviews') && (
           <TriagePipeline />
         )}
@@ -95,21 +117,21 @@ export function App() {
           </div>
         )}
 
-        {/* Tab 3: Manual Diff Sandbox */}
+        {/* Tab 3: Manual Diff Sandbox (Admin / Security Engineer) */}
         {activeTab === 'diff-sandbox' && (
           <div className="animate-in fade-in duration-200">
             <ManualDiffPlayground />
           </div>
         )}
 
-        {/* Tab 4: GitHub PR Webhook Simulator */}
+        {/* Tab 4: GitHub PR Webhook Simulator (Admin only) */}
         {activeTab === 'github-simulator' && (
           <div className="animate-in fade-in duration-200">
             <GitHubPRSimulator onReviewComplete={loadData} />
           </div>
         )}
 
-        {/* Tab 5: Compliance Audit Logs */}
+        {/* Tab 5: Compliance Audit Logs (Admin / Security Engineer) */}
         {activeTab === 'audit-logs' && (
           <div className="animate-in fade-in duration-200">
             <AuditMatrix />
@@ -121,7 +143,7 @@ export function App() {
       {/* Engineering Footer */}
       <footer className="border-t border-cyber-border py-4 px-6 text-center text-xs font-mono text-cyber-muted">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>CodeSentinel Enterprise AI DevSecOps Agent • GitHub PR Reviewer</span>
+          <span>CodeSentinel Enterprise Zero-Trust AI DevSecOps Agent</span>
           <span>Dual Runtime: Node.js Control Plane + Python FastAPI Worker Plane + Gemini API</span>
         </div>
       </footer>

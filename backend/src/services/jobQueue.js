@@ -1,14 +1,17 @@
 const PRReview = require('../models/PRReview');
 const AuditLog = require('../models/AuditLog');
+const Repository = require('../models/Repository');
 const RepositoryHealth = require('../models/RepositoryHealth');
 const aiEngineClient = require('./aiEngineClient');
 const githubService = require('./githubService');
 const socketService = require('./socketService');
 const NodeSecretSanitizer = require('./secretSanitizer');
+const DiffParser = require('../utils/diffParser');
 const { inMemoryStore } = require('../config/database');
 
 /**
  * Enterprise Asynchronous PR Review Job Dispatcher
+ * Detached background pipeline with strict schema persistence, token protection, and graceful error boundaries.
  */
 class JobQueue {
   constructor() {
@@ -21,10 +24,10 @@ class JobQueue {
   enqueuePRReview(jobData) {
     const jobId = `job_${jobData.repoOwner}_${jobData.repoName}_pr${jobData.prNumber}_${Date.now()}`;
     
-    // Non-blocking asynchronous execution
+    // Detached non-blocking asynchronous execution
     setImmediate(() => {
       this._processPRJob(jobId, jobData).catch(err => {
-        console.error(`[JobQueue] Fatal error processing PR job ${jobId}:`, err);
+        console.error(`[JobQueue] Fatal error caught in PR worker ${jobId}: ${err.message}`, err);
       });
     });
 
@@ -33,15 +36,28 @@ class JobQueue {
 
   async _processPRJob(jobId, jobData) {
     const startTime = Date.now();
-    const { repoOwner, repoName, prNumber, title, author, baseBranch, headBranch, headSha, files: initialFiles, context } = jobData;
+    const {
+      deliveryId,
+      installationId,
+      repoOwner,
+      repoName,
+      prNumber,
+      title,
+      author,
+      baseBranch,
+      headBranch,
+      headSha,
+      files: initialFiles,
+      context
+    } = jobData;
     const repoFullName = `${repoOwner}/${repoName}`;
 
-    console.log(`[JobQueue] Starting PR Review Pipeline for ${repoFullName}#${prNumber}`);
+    console.log(`[JobQueue] Starting PR Review Pipeline for ${repoFullName}#${prNumber} (Delivery: ${deliveryId || 'none'})`);
 
-    // Helper to emit progress and audit
     const updateProgress = (stage, percent, message) => {
       socketService.broadcastTriageProgress({
         jobId,
+        deliveryId,
         repoOwner,
         repoName,
         prNumber,
@@ -55,7 +71,7 @@ class JobQueue {
     const recordAudit = async (eventType, status, latencyMs, details) => {
       const logData = {
         eventType,
-        actor: `CodeSentinel Pipeline [${author || 'PR-Worker'}]`,
+        actor: `CodeSentinel Zero-Trust Worker [${author || 'PR-Worker'}]`,
         repository: repoFullName,
         prNumber,
         status,
@@ -76,17 +92,24 @@ class JobQueue {
     try {
       // Step 1: Queued & Ingested
       updateProgress('QUEUED', 10, 'Webhook ingested & cryptographically verified. Background job started.');
-      await recordAudit('WEBHOOK_INGESTED', 'SUCCESS', 15, { prNumber, title, headSha });
+      await recordAudit('WEBHOOK_INGESTED', 'SUCCESS', 15, { prNumber, title, headSha, deliveryId });
 
-      // Step 2: Fetch files / Diffs
-      updateProgress('INGESTING_DIFFS', 25, 'Fetching unified patch diffs from repository tree...');
-      let files = initialFiles;
-      if (!files || files.length === 0) {
-        files = await githubService.fetchPRFiles(repoOwner, repoName, prNumber);
+      // Step 2: Fetch and Filter Diffs (Token Limit Protection)
+      updateProgress('INGESTING_DIFFS', 25, 'Fetching unified patch diffs and filtering non-actionable lockfiles/binaries...');
+      let rawFiles = initialFiles;
+      let diffData;
+
+      if (!rawFiles || rawFiles.length === 0) {
+        diffData = await githubService.fetchPRFiles(repoOwner, repoName, prNumber, installationId);
+      } else {
+        diffData = DiffParser.filterAndChunkDiffs(rawFiles);
       }
 
+      const files = diffData.actionableFiles || [];
+      const ignoredFiles = diffData.ignoredFiles || [];
+
       // Step 3: Fast In-Flight Secret Pre-Sanitization
-      updateProgress('SECRET_INTERCEPTION', 40, 'Executing sub-millisecond regex & entropy secret interceptor...');
+      updateProgress('SECRET_INTERCEPTION', 40, 'Executing sub-millisecond regex & Shannon entropy secret interceptor...');
       const sanitizedFiles = files.map(f => ({
         ...f,
         patch: NodeSecretSanitizer.sanitize(f.patch)
@@ -111,7 +134,8 @@ class JobQueue {
       const aiLatency = Date.now() - aiStartTime;
 
       await recordAudit('AST_TRAVERSAL_COMPLETED', 'SUCCESS', Math.round(aiLatency * 0.3), {
-        crossFileImpactsCount: (aiResponse.cross_file_impacts || []).length
+        crossFileImpactsCount: (aiResponse.cross_file_impacts || []).length,
+        filteredOutFilesCount: ignoredFiles.length
       });
 
       await recordAudit('RBAC_VERIFIED', 'SUCCESS', Math.round(aiLatency * 0.2), {
@@ -123,14 +147,15 @@ class JobQueue {
         riskLevel: aiResponse.blast_radius?.risk_level || 'LOW'
       });
 
-      // Step 5: Post to GitHub
+      // Step 5: Post to GitHub via GitHub App / Token
       updateProgress('POSTING_GITHUB_REVIEW', 85, 'Constructing committable Markdown suggestions & posting inline review...');
       const githubPostResult = await githubService.postInlineReview(
         repoOwner,
         repoName,
         prNumber,
         headSha,
-        aiResponse
+        aiResponse,
+        installationId
       );
 
       await recordAudit('GITHUB_CHECK_POSTED', 'SUCCESS', 120, {
@@ -138,12 +163,13 @@ class JobQueue {
         reviewId: githubPostResult.id
       });
 
-      // Step 6: Persist Review Record
+      // Step 6: Persist Review Record (Strict Mongoose Schema)
       updateProgress('FINALIZING', 95, 'Indexing PR metrics and updating repository health profile...');
       const totalElapsedMs = Date.now() - startTime;
 
       const reviewRecordData = {
         prId: `${repoOwner}/${repoName}#${prNumber}`,
+        deliveryId: deliveryId || null,
         repoOwner,
         repoName,
         prNumber,
@@ -168,59 +194,60 @@ class JobQueue {
           summary: aiResponse.blast_radius?.summary || ''
         },
         filesAnalyzedCount: files.length,
+        filteredOutFilesCount: ignoredFiles.length,
         secretsIntercepted: (aiResponse.secrets_intercepted || []).map(s => ({
-          ruleId: s.rule_id,
-          secretType: s.secret_type,
-          file: s.file,
-          line: s.line,
-          rawMatchedHash: s.raw_matched_hash,
-          entropyScore: s.entropy_score,
-          isLiveRisk: s.is_live_risk,
-          redactedPreview: s.redacted_preview
+          ruleId: s.rule_id || 'UNKNOWN_SECRET',
+          secretType: s.secret_type || 'Generic Secret',
+          file: s.file || 'unknown',
+          line: s.line || 1,
+          rawMatchedHash: s.raw_matched_hash || 'hash',
+          entropyScore: s.entropy_score || 3.8,
+          isLiveRisk: s.is_live_risk !== false,
+          redactedPreview: s.redacted_preview || '[REDACTED]'
         })),
         vulnerabilities: (aiResponse.vulnerabilities || []).map(v => ({
-          id: v.id,
-          ruleId: v.rule_id,
-          title: v.title,
-          severity: v.severity,
+          id: v.id || `VULN-${Date.now()}`,
+          ruleId: v.rule_id || 'SECURITY_VULN',
+          title: v.title || 'Security Finding',
+          severity: v.severity || 'HIGH',
           cweId: v.cwe_id || 'CWE-693',
           owaspCategory: v.owasp_category || 'A01:2021-Broken Access Control',
-          file: v.file,
-          lineStart: v.line_start,
-          lineEnd: v.line_end,
-          description: v.description,
-          impact: v.impact,
+          file: v.file || 'unknown',
+          lineStart: v.line_start || 1,
+          lineEnd: v.line_end || 1,
+          description: v.description || '',
+          impact: v.impact || '',
           confidence: v.confidence || 0.95
         })),
         rbacIssues: (aiResponse.rbac_issues || []).map(r => ({
-          route: r.route,
-          method: r.method,
-          file: r.file,
-          line: r.line,
-          issueType: r.issue_type,
-          description: r.description,
-          severity: r.severity,
-          remediationAdvice: r.remediation_advice
+          route: r.route || '/',
+          method: r.method || 'GET',
+          file: r.file || 'unknown',
+          line: r.line || 1,
+          issueType: r.issue_type || 'MISSING_AUTH_MIDDLEWARE',
+          description: r.description || '',
+          severity: r.severity || 'HIGH',
+          remediationAdvice: r.remediation_advice || ''
         })),
         crossFileImpacts: (aiResponse.cross_file_impacts || []).map(c => ({
-          sourceFile: c.source_file,
-          targetFile: c.target_file,
-          impactType: c.impact_type,
-          symbol: c.symbol,
-          description: c.description,
-          severity: c.severity
+          sourceFile: c.source_file || 'unknown',
+          targetFile: c.target_file || 'unknown',
+          impactType: c.impact_type || 'SCHEMA_BREAK',
+          symbol: c.symbol || 'unknown',
+          description: c.description || '',
+          severity: c.severity || 'HIGH'
         })),
         remediations: (aiResponse.remediations || []).map(rem => ({
-          id: rem.id,
+          id: rem.id || `REM-${Date.now()}`,
           vulnerabilityId: rem.vulnerability_id,
-          file: rem.file,
-          lineStart: rem.line_start,
-          lineEnd: rem.line_end,
-          originalCode: rem.original_code,
-          suggestedCode: rem.suggested_code,
-          githubMarkdownSuggestion: rem.github_markdown_suggestion,
-          explanation: rem.explanation,
-          testVerificationSnippet: rem.test_verification_snippet
+          file: rem.file || 'unknown',
+          lineStart: rem.line_start || 1,
+          lineEnd: rem.line_end || 1,
+          originalCode: rem.original_code || '',
+          suggestedCode: rem.suggested_code || '',
+          githubMarkdownSuggestion: rem.github_markdown_suggestion || `\`\`\`suggestion\n${rem.suggested_code || ''}\n\`\`\``,
+          explanation: rem.explanation || '',
+          testVerificationSnippet: rem.test_verification_snippet || ''
         })),
         noiseSuppressionStats: {
           totalRulesEvaluated: aiResponse.noise_suppression_stats?.total_rules_evaluated || 0,
@@ -230,7 +257,7 @@ class JobQueue {
         },
         executiveSummary: aiResponse.executive_summary || '',
         executionTimeMs: totalElapsedMs,
-        aiEngineUsed: aiResponse.ai_engine_used || 'CodeSentinel Engine',
+        aiEngineUsed: aiResponse.ai_engine_used || 'CodeSentinel Zero-Trust Engine',
         commentsPostedCount: githubPostResult.commentsCount || 0
       };
 
@@ -239,44 +266,65 @@ class JobQueue {
         savedReview = await PRReview.findOneAndUpdate(
           { repoOwner, repoName, prNumber },
           reviewRecordData,
-          { upsert: true, new: true }
+          { upsert: true, new: true, runValidators: true }
         );
       } catch (e) {
+        console.warn(`[JobQueue] MongoDB save fallback: ${e.message}`);
         inMemoryStore.reviews.set(`${repoOwner}/${repoName}#${prNumber}`, { ...reviewRecordData, _id: `rev_${Date.now()}` });
         savedReview = inMemoryStore.reviews.get(`${repoOwner}/${repoName}#${prNumber}`);
       }
 
-      // Step 7: Update Health Score
-      await this._updateRepoHealth(repoOwner, repoName, reviewRecordData);
+      // Step 7: Update Repository Health Profile
+      await this._updateRepoHealth(repoOwner, repoName, reviewRecordData, installationId);
 
       updateProgress('COMPLETED', 100, `PR Review successfully finalized in ${totalElapsedMs}ms. Risk: ${reviewRecordData.overallRisk}.`);
 
       return savedReview;
 
     } catch (err) {
-      console.error(`[JobQueue] PR Analysis Pipeline Failed: ${err.message}`, err);
-      updateProgress('FAILED', 100, `Pipeline failed: ${err.message}`);
-      await recordAudit('CIRCUIT_BREAKER_TRIGGERED', 'FAILURE', 0, { error: err.message });
-      throw err;
+      console.error(`[JobQueue] PR Analysis Pipeline Failed gracefully: ${err.message}`);
+      
+      // Update DB to FAILED status
+      try {
+        await PRReview.findOneAndUpdate(
+          { repoOwner, repoName, prNumber },
+          {
+            prId: `${repoOwner}/${repoName}#${prNumber}`,
+            deliveryId: deliveryId || null,
+            repoOwner,
+            repoName,
+            prNumber,
+            title: title || `PR #${prNumber}`,
+            status: 'FAILED',
+            errorMessage: err.message
+          },
+          { upsert: true, new: true }
+        );
+      } catch (dbErr) {
+        // Safe fallback
+      }
+
+      updateProgress('FAILED', 100, `Pipeline encountered an error: ${err.message}`);
+      await recordAudit('PIPELINE_ERROR', 'FAILURE', 0, { error: err.message, deliveryId });
     }
   }
 
-  async _updateRepoHealth(repoOwner, repoName, review) {
+  async _updateRepoHealth(repoOwner, repoName, review, installationId = null) {
     const fullName = `${repoOwner}/${repoName}`;
     const isCritical = review.overallRisk === 'CRITICAL';
     const isHigh = review.overallRisk === 'HIGH';
     
-    // Penalize score for critical/high issues
     const penalty = isCritical ? 15 : (isHigh ? 8 : 0);
     const bonus = review.overallRisk === 'LOW' || review.overallRisk === 'CLEAN' ? 3 : 0;
 
     try {
-      let health = await RepositoryHealth.findOne({ fullName });
-      if (!health) {
-        health = new RepositoryHealth({
-          repoOwner,
-          repoName,
+      let repo = await Repository.findOne({ fullName });
+      if (!repo) {
+        repo = new Repository({
           fullName,
+          owner: repoOwner,
+          name: repoName,
+          installationId: installationId || null,
           healthScore: Math.max(20, Math.min(100, 85 - penalty + bonus)),
           totalReviewsCount: 1,
           criticalIssuesBlockedCount: isCritical ? 1 : 0,
@@ -285,16 +333,17 @@ class JobQueue {
           averageLatencyMs: review.executionTimeMs
         });
       } else {
-        health.healthScore = Math.max(15, Math.min(100, health.healthScore - penalty + bonus));
-        health.totalReviewsCount += 1;
-        if (isCritical) health.criticalIssuesBlockedCount += 1;
-        health.secretsNeutralizedCount += review.secretsIntercepted.length;
-        health.averageBlastRadius = Math.round((health.averageBlastRadius + review.blastRadius.overallScore) / 2);
-        health.averageLatencyMs = Math.round((health.averageLatencyMs + review.executionTimeMs) / 2);
-        health.lastScannedAt = new Date();
+        repo.healthScore = Math.max(15, Math.min(100, repo.healthScore - penalty + bonus));
+        repo.totalReviewsCount += 1;
+        if (isCritical) repo.criticalIssuesBlockedCount += 1;
+        repo.secretsNeutralizedCount += review.secretsIntercepted.length;
+        repo.averageBlastRadius = Math.round((repo.averageBlastRadius + review.blastRadius.overallScore) / 2);
+        repo.averageLatencyMs = Math.round((repo.averageLatencyMs + review.executionTimeMs) / 2);
+        repo.lastScannedAt = new Date();
+        if (installationId) repo.installationId = installationId;
       }
-      await health.save();
-      socketService.broadcastMetricsUpdate(health);
+      await repo.save();
+      socketService.broadcastMetricsUpdate(repo);
     } catch (e) {
       // In-memory fallback
       const current = inMemoryStore.repoHealth.get(fullName) || {

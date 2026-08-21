@@ -9,9 +9,15 @@ const config = {
   clientUrl: process.env.CLIENT_URL || process.env.FRONTEND_URL || 'http://localhost:5173',
   mongoUri: process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/codesentinel',
   aiEngineUrl: process.env.AI_ENGINE_URL || 'http://localhost:8000',
-  aiEngineTimeoutMs: parseInt(process.env.AI_ENGINE_TIMEOUT_MS || '3000', 10),
+  aiEngineTimeoutMs: parseInt(process.env.AI_ENGINE_TIMEOUT_MS || '4000', 10),
+  
+  // GitHub Integration & Zero-Trust App Identity
   githubWebhookSecret: process.env.GITHUB_WEBHOOK_SECRET || 'codesentinel_webhook_secret_2026',
   githubToken: process.env.GITHUB_TOKEN || '',
+  githubAppId: process.env.GITHUB_APP_ID || '',
+  githubPrivateKey: process.env.GITHUB_PRIVATE_KEY || '',
+  githubInstallationId: process.env.GITHUB_INSTALLATION_ID || '',
+
   jwtSecret: process.env.JWT_SECRET || 'codesentinel_jwt_enterprise_secret_key_default_32',
   apiKey: process.env.API_KEY || 'cs_live_devsecops_key_enterprise_2026',
   

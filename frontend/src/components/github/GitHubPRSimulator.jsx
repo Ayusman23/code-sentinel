@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Play, GitPullRequest, CheckCircle2, MessageSquare } from 'lucide-react';
+import { Play, GitPullRequest, CheckCircle2, MessageSquare, ShieldAlert } from 'lucide-react';
 import { triggerSimulatedWebhook } from '../../services/api';
 import { useSocket } from '../../context/SocketContext';
+import { useAuth } from '../../context/AuthContext';
 import { CyberBadge } from '../common/CyberBadge';
 
 export const GitHubPRSimulator = ({ onReviewComplete }) => {
   const { activePipelineJob } = useSocket();
+  const { hasPermission, currentRoleConfig } = useAuth();
   const [repoOwner, setRepoOwner] = useState('enterprise-org');
   const [repoName, setRepoName] = useState('cloud-core-api');
   const [prNumber, setPrNumber] = useState(142);
@@ -13,6 +15,8 @@ export const GitHubPRSimulator = ({ onReviewComplete }) => {
   const [author, setAuthor] = useState('developer-lead');
   const [loading, setLoading] = useState(false);
   const [webhookResponse, setWebhookResponse] = useState(null);
+
+  const canTriggerWebhook = hasPermission('TRIGGER_WEBHOOK');
 
   const sampleDiff = `--- a/src/controllers/adminController.ts
 +++ b/src/controllers/adminController.ts
@@ -31,6 +35,8 @@ export const GitHubPRSimulator = ({ onReviewComplete }) => {
 +   });`;
 
   const handleTriggerWebhook = async () => {
+    if (!canTriggerWebhook) return;
+
     setLoading(true);
     setWebhookResponse(null);
 
@@ -89,13 +95,22 @@ export const GitHubPRSimulator = ({ onReviewComplete }) => {
 
         <button
           onClick={handleTriggerWebhook}
-          disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 rounded bg-cyber-card text-cyber-accent border border-cyber-border hover:border-cyber-accent font-medium text-xs transition-colors disabled:opacity-50"
+          disabled={loading || !canTriggerWebhook}
+          className="flex items-center gap-2 px-4 py-2 rounded bg-cyber-card text-cyber-accent border border-cyber-border hover:border-cyber-accent font-medium text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          title={!canTriggerWebhook ? 'Requires SecOps Lead (Admin) role' : 'Trigger webhook'}
         >
           <Play className="w-3.5 h-3.5 fill-current" />
-          {loading ? 'DISPATCHING WEBHOOK...' : 'TRIGGER GITHUB WEBHOOK (202)'}
+          {loading ? 'DISPATCHING WEBHOOK...' : canTriggerWebhook ? 'TRIGGER GITHUB WEBHOOK (202)' : 'ADMIN PERMISSION REQUIRED'}
         </button>
       </div>
+
+      {/* Role permission notice if restricted */}
+      {!canTriggerWebhook && (
+        <div className="p-3 rounded diff-card state-high text-xs flex items-center gap-2">
+          <ShieldAlert className="w-4 h-4 text-cyber-high shrink-0" />
+          <span>You are viewing this module as <strong>{currentRoleConfig.name}</strong>. Webhook simulations require SecOps Lead (Admin) permissions. Switch roles in the top-right header to test.</span>
+        </div>
+      )}
 
       {/* PR Payload Configuration Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
@@ -176,8 +191,8 @@ export const GitHubPRSimulator = ({ onReviewComplete }) => {
           <div className="flex items-center gap-3">
             <CheckCircle2 className="w-4 h-4 text-cyber-low" />
             <div>
-              <span className="text-xs font-bold text-cyber-low">HTTP 202 ACCEPTED (Non-Blocking Ingestion in 18ms)</span>
-              <p className="text-[11px] text-cyber-muted mt-0.5">Job ID: <code className="text-cyber-accent">{webhookResponse.jobId}</code></p>
+              <span className="text-xs font-bold text-cyber-low">HTTP 200 OK — ACCEPTED (Idempotent Ingestion)</span>
+              <p className="text-[11px] text-cyber-muted mt-0.5">Job ID: <code className="text-cyber-accent">{webhookResponse.jobId}</code> | Delivery: <span className="text-cyber-text">{webhookResponse.deliveryId}</span></p>
             </div>
           </div>
           <CyberBadge variant="COMPLETED">HMAC VERIFIED</CyberBadge>
@@ -196,7 +211,7 @@ export const GitHubPRSimulator = ({ onReviewComplete }) => {
           <div className="flex items-center justify-between border-b border-cyber-border pb-2 text-xs">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-cyber-critical" />
-              <strong>CodeSentinel DevSecOps / PR Review</strong>
+              <strong>CodeSentinel Zero-Trust DevSecOps / PR Review</strong>
               <span className="text-cyber-muted">— Completed</span>
             </div>
             <span className="text-cyber-faint text-[11px]">Details</span>
