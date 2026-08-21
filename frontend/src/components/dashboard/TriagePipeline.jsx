@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldAlert, GitPullRequest, Key, Network, Lock, Zap, CheckCircle, Activity, ArrowRight } from 'lucide-react';
+import { GitPullRequest, Key, Network, Lock, Zap, CheckCircle, Activity } from 'lucide-react';
 import { useSocket } from '../../context/SocketContext';
 import { CyberBadge } from '../common/CyberBadge';
 
@@ -19,11 +19,11 @@ export const TriagePipeline = () => {
   const percent = activePipelineJob?.percent || 0;
 
   return (
-    <div className="cyber-glass rounded-xl p-5 border border-cyber-border/40 relative overflow-hidden">
+    <div className="panel rounded p-5">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <Activity className="w-5 h-5 text-cyber-accent animate-pulse" />
-          <h2 className="text-sm font-bold font-mono tracking-wider text-white uppercase">Real-Time PR Triage Pipeline</h2>
+          <Activity className="w-4 h-4 text-cyber-accent" />
+          <h2 className="text-xs font-mono font-bold tracking-wider text-cyber-text uppercase">Real-Time PR Triage Pipeline</h2>
         </div>
         <div className="flex items-center gap-2">
           {activePipelineJob ? (
@@ -32,7 +32,7 @@ export const TriagePipeline = () => {
             </CyberBadge>
           ) : (
             <span className="text-xs font-mono text-cyber-muted flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              <span className="w-1.5 h-1.5 rounded-full bg-cyber-low animate-pulse-slow" />
               PIPELINE IDLE (LISTENING FOR WEBHOOKS)
             </span>
           )}
@@ -40,15 +40,15 @@ export const TriagePipeline = () => {
       </div>
 
       {/* Progress Bar */}
-      <div className="w-full bg-cyber-dark h-2 rounded-full overflow-hidden mb-6 border border-cyber-border/20">
+      <div className="w-full bg-cyber-bg h-1.5 rounded overflow-hidden mb-5 border border-cyber-border">
         <div
-          className="h-full bg-gradient-to-r from-cyber-accent via-emerald-400 to-cyan-400 transition-all duration-500 rounded-full shadow-[0_0_12px_rgba(34,230,184,0.6)]"
+          className="h-full bg-cyber-accent transition-all duration-300 rounded"
           style={{ width: `${activePipelineJob ? percent : 100}%` }}
         />
       </div>
 
       {/* 6 Core Architectural Stage Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
         {stages.map((st, idx) => {
           const Icon = st.icon;
           const isCurrent = currentStage === st.id;
@@ -57,20 +57,20 @@ export const TriagePipeline = () => {
           return (
             <div
               key={st.id}
-              className={`p-3 rounded-lg border transition-all duration-300 relative ${
+              className={`p-3 rounded border transition-colors duration-150 relative ${
                 isCurrent
-                  ? 'bg-cyber-accent/15 border-cyber-accent shadow-[0_0_15px_rgba(34,230,184,0.3)] scale-[1.02]'
+                  ? 'bg-cyber-card border-cyber-accent text-cyber-accent'
                   : isDone
-                  ? 'bg-cyber-card/90 border-emerald-500/30 text-emerald-400'
-                  : 'bg-cyber-card/40 border-cyber-border/20 text-cyber-muted'
+                  ? 'bg-cyber-card border-cyber-low/40 text-cyber-low'
+                  : 'bg-cyber-bg border-cyber-border text-cyber-muted'
               }`}
             >
               <div className="flex items-center justify-between mb-1.5">
-                <Icon className={`w-4 h-4 ${isCurrent ? 'text-cyber-accent animate-bounce' : isDone ? 'text-emerald-400' : 'text-cyber-muted'}`} />
-                <span className="text-[10px] font-mono font-bold opacity-60">0{idx + 1}</span>
+                <Icon className={`w-3.5 h-3.5 ${isCurrent ? 'text-cyber-accent' : isDone ? 'text-cyber-low' : 'text-cyber-muted'}`} />
+                <span className="text-[10px] font-mono opacity-60">0{idx + 1}</span>
               </div>
-              <p className={`text-xs font-semibold font-mono ${isCurrent ? 'text-white' : 'text-slate-300'}`}>{st.label}</p>
-              <p className="text-[10px] text-cyber-muted mt-0.5 truncate">{st.desc}</p>
+              <p className={`text-xs font-semibold font-mono ${isCurrent ? 'text-cyber-text' : isDone ? 'text-cyber-low' : 'text-cyber-muted'}`}>{st.label}</p>
+              <p className="text-[10px] font-mono text-cyber-muted mt-0.5 truncate">{st.desc}</p>
             </div>
           );
         })}
@@ -78,12 +78,12 @@ export const TriagePipeline = () => {
 
       {/* Dynamic Status Log Line */}
       {activePipelineJob?.message && (
-        <div className="mt-4 p-2.5 rounded-lg bg-cyber-dark/80 border border-cyber-border/30 flex items-center justify-between text-xs font-mono">
+        <div className="mt-4 p-2.5 rounded bg-cyber-bg border border-cyber-border flex items-center justify-between text-xs font-mono">
           <div className="flex items-center gap-2 text-cyber-accent">
-            <span className="animate-spin text-sm">⟳</span>
+            <span>⟳</span>
             <span>{activePipelineJob.message}</span>
           </div>
-          <span className="text-cyber-muted">{activePipelineJob.percent}%</span>
+          <span className="text-cyber-muted tabular-nums">{activePipelineJob.percent}%</span>
         </div>
       )}
     </div>

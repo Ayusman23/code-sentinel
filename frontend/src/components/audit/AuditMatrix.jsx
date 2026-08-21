@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Search, Filter, ShieldCheck, Download, RefreshCw } from 'lucide-react';
+import { ShieldCheck, Download, RefreshCw } from 'lucide-react';
 import { getAuditLogs } from '../../services/api';
 import { CyberBadge } from '../common/CyberBadge';
 
@@ -41,12 +41,12 @@ export const AuditMatrix = () => {
   };
 
   return (
-    <div className="space-y-6 font-mono">
+    <div className="space-y-4 font-mono">
       {/* Top Banner */}
-      <div className="cyber-glass p-5 rounded-xl border border-cyber-border/40 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="panel p-4 rounded border border-cyber-border flex flex-col sm:flex-row items-center justify-between gap-4">
         <div>
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-cyber-accent" />
+          <h3 className="text-xs font-bold text-cyber-text flex items-center gap-2 uppercase tracking-wider">
+            <ShieldCheck className="w-3.5 h-3.5 text-cyber-accent" />
             Enterprise Compliance & Audit Telemetry Matrix
           </h3>
           <p className="text-xs text-cyber-muted mt-0.5">
@@ -57,13 +57,14 @@ export const AuditMatrix = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={exportAuditJSON}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyber-dark text-xs text-cyber-accent border border-cyber-border/30 hover:border-cyber-accent transition"
+            className="flex items-center gap-1.5 px-3 py-1 rounded bg-cyber-bg text-xs text-cyber-accent border border-cyber-border hover:border-cyber-accent transition-colors"
           >
             <Download className="w-3.5 h-3.5" /> Export JSON
           </button>
           <button
             onClick={fetchLogs}
-            className="p-2 rounded-lg bg-cyber-dark text-cyber-muted hover:text-white border border-cyber-border/30 transition"
+            aria-label="Refresh audit logs"
+            className="p-1.5 rounded bg-cyber-bg text-cyber-muted hover:text-cyber-text border border-cyber-border transition-colors"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -71,15 +72,15 @@ export const AuditMatrix = () => {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-2">
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
         {eventTypes.map((et) => (
           <button
             key={et}
             onClick={() => setFilterType(et)}
-            className={`px-3 py-1 rounded-lg text-xs transition whitespace-nowrap border ${
+            className={`px-2.5 py-1 rounded text-xs transition-colors whitespace-nowrap border ${
               filterType === et
-                ? 'bg-cyber-accent text-cyber-dark font-bold border-cyber-accent'
-                : 'bg-cyber-card text-cyber-muted hover:text-white border-cyber-border/30'
+                ? 'bg-cyber-card text-cyber-accent font-medium border-cyber-accent'
+                : 'bg-cyber-bg text-cyber-muted hover:text-cyber-text border-cyber-border'
             }`}
           >
             {et}
@@ -88,21 +89,21 @@ export const AuditMatrix = () => {
       </div>
 
       {/* Audit Log Table */}
-      <div className="cyber-glass rounded-xl border border-cyber-border/40 overflow-hidden">
+      <div className="panel rounded border border-cyber-border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-cyber-dark/90 border-b border-cyber-border/40 text-cyber-muted uppercase text-[10px]">
+            <thead className="bg-cyber-bg border-b border-cyber-border text-cyber-muted uppercase text-[10px]">
               <tr>
-                <th className="p-3.5">Timestamp</th>
-                <th className="p-3.5">Event Type</th>
-                <th className="p-3.5">Target Repository</th>
-                <th className="p-3.5">Actor / Pipeline</th>
-                <th className="p-3.5">Status</th>
-                <th className="p-3.5">Latency</th>
-                <th className="p-3.5">Audit Payload Details</th>
+                <th className="p-3 font-semibold">Timestamp</th>
+                <th className="p-3 font-semibold">Event Type</th>
+                <th className="p-3 font-semibold">Target Repository</th>
+                <th className="p-3 font-semibold">Actor / Pipeline</th>
+                <th className="p-3 font-semibold">Status</th>
+                <th className="p-3 font-semibold">Latency</th>
+                <th className="p-3 font-semibold">Audit Payload Details</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-cyber-border/20 text-slate-300">
+            <tbody className="divide-y divide-cyber-border text-cyber-text">
               {filteredLogs.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-8 text-center text-cyber-muted">
@@ -112,28 +113,28 @@ export const AuditMatrix = () => {
               ) : (
                 filteredLogs.map((log, idx) => (
                   <tr key={idx} className="hover:bg-cyber-cardHover/50 transition-colors">
-                    <td className="p-3.5 text-cyber-muted whitespace-nowrap">
+                    <td className="p-3 text-cyber-faint whitespace-nowrap tabular-nums">
                       {log.timestamp ? new Date(log.timestamp).toLocaleString() : 'Just now'}
                     </td>
-                    <td className="p-3.5 font-bold text-cyber-accent whitespace-nowrap">
+                    <td className="p-3 font-medium text-cyber-accent whitespace-nowrap">
                       {log.eventType}
                     </td>
-                    <td className="p-3.5 text-white whitespace-nowrap">
+                    <td className="p-3 text-cyber-text whitespace-nowrap">
                       {log.repository || 'system'}
                       {log.prNumber ? ` #${log.prNumber}` : ''}
                     </td>
-                    <td className="p-3.5 text-slate-400 whitespace-nowrap">
+                    <td className="p-3 text-cyber-muted whitespace-nowrap">
                       {log.actor || 'CodeSentinel System'}
                     </td>
-                    <td className="p-3.5 whitespace-nowrap">
+                    <td className="p-3 whitespace-nowrap">
                       <CyberBadge variant={log.status === 'SUCCESS' ? 'COMPLETED' : 'CRITICAL'} size="xs">
                         {log.status || 'SUCCESS'}
                       </CyberBadge>
                     </td>
-                    <td className="p-3.5 text-cyber-muted whitespace-nowrap">
+                    <td className="p-3 text-cyber-faint whitespace-nowrap tabular-nums">
                       {log.latencyMs ? `+${log.latencyMs}ms` : '0ms'}
                     </td>
-                    <td className="p-3.5 text-slate-400 max-w-xs truncate">
+                    <td className="p-3 text-cyber-muted max-w-xs truncate text-[11px]">
                       <code>{JSON.stringify(log.details || {})}</code>
                     </td>
                   </tr>

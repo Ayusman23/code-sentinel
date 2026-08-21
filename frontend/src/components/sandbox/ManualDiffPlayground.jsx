@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Code, ShieldAlert, Sparkles, RefreshCw, FileText, CheckCircle2 } from 'lucide-react';
+import { Play, ShieldAlert, Sparkles, RefreshCw } from 'lucide-react';
 import { analyzeManualDiff } from '../../services/api';
 import { CyberBadge } from '../common/CyberBadge';
 import { BlastRadiusVisualizer } from '../reviews/BlastRadiusVisualizer';
@@ -9,7 +9,7 @@ import { RemediationViewer } from '../reviews/RemediationViewer';
 const PRESETS = [
   {
     id: 'auth_and_secrets',
-    name: '🚨 Auth Bypass & Secret Leak',
+    name: 'Auth Bypass & Secret Leak',
     filename: 'src/routes/paymentRoutes.ts',
     diff: `+ router.post('/api/payments/charge', async (req, res) => {
 +   const apiKey = "sk_test_mock_sandbox_token_demo_99a88b77c";
@@ -20,7 +20,7 @@ const PRESETS = [
   },
   {
     id: 'privilege_escalation',
-    name: '⚠️ Privilege Escalation in Body',
+    name: 'Privilege Escalation in Body',
     filename: 'src/controllers/userController.ts',
     diff: `+ export async function updateProfile(req, res) {
 +   const user = await User.findById(req.user.id);
@@ -32,7 +32,7 @@ const PRESETS = [
   },
   {
     id: 'cross_file_desync',
-    name: '💥 Cross-File Signature Desync',
+    name: 'Cross-File Signature Desync',
     filename: 'src/services/authService.ts',
     diff: `- export function generateSession(userId) {
 + export function generateSession(userId, tenantId, ipAddress, mfaVerified) {
@@ -41,7 +41,7 @@ const PRESETS = [
   },
   {
     id: 'clean_feature',
-    name: '🟢 Secure & Compliant Feature',
+    name: 'Secure & Compliant Feature',
     filename: 'src/services/analytics.ts',
     diff: `+ export function trackEvent(name: string, payload: Record<string, any>) {
 +   const sanitized = sanitizeTelemetry(payload);
@@ -97,29 +97,29 @@ export const ManualDiffPlayground = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Preset Selector Banner */}
-      <div className="cyber-glass p-4 rounded-xl border border-cyber-border/40 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="panel p-4 rounded border border-cyber-border flex flex-col md:flex-row items-center justify-between gap-4">
         <div>
-          <h3 className="text-sm font-bold text-white font-mono flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-cyber-accent" />
+          <h3 className="text-xs font-bold text-cyber-text font-mono flex items-center gap-2 uppercase tracking-wider">
+            <Sparkles className="w-3.5 h-3.5 text-cyber-accent" />
             AI DevSecOps Manual Diff Playground
           </h3>
           <p className="text-xs text-cyber-muted font-mono mt-0.5">
-            Test arbitrary code diffs against the 7 core architectural engines with instant feedback.
+            Test arbitrary code diffs against the core architectural engines with instant feedback.
           </p>
         </div>
 
         {/* Preset Selector Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           {PRESETS.map((p) => (
             <button
               key={p.id}
               onClick={() => handleSelectPreset(p)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-mono transition border ${
+              className={`px-2.5 py-1 rounded text-xs font-mono transition-colors border ${
                 selectedPreset.id === p.id
-                  ? 'bg-cyber-accent/20 border-cyber-accent text-cyber-accent font-bold'
-                  : 'bg-cyber-dark text-cyber-muted hover:text-white border-cyber-border/30'
+                  ? 'bg-cyber-card border-cyber-accent text-cyber-accent font-medium'
+                  : 'bg-cyber-bg text-cyber-muted hover:text-cyber-text border-cyber-border'
               }`}
             >
               {p.name}
@@ -129,42 +129,42 @@ export const ManualDiffPlayground = () => {
       </div>
 
       {/* Editor & Scan Trigger */}
-      <div className="cyber-glass rounded-xl p-5 border border-cyber-border/40 space-y-4">
+      <div className="panel rounded p-4 border border-cyber-border space-y-4">
         <div className="flex items-center gap-3">
           <span className="text-xs font-mono text-cyber-muted uppercase">Target File Path:</span>
           <input
             type="text"
             value={filename}
             onChange={(e) => setFilename(e.target.value)}
-            className="flex-1 bg-cyber-dark border border-cyber-border/30 rounded-lg px-3 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-cyber-accent"
+            className="flex-1 bg-cyber-bg border border-cyber-border rounded px-3 py-1.5 text-xs font-mono text-cyber-text focus:outline-none focus:border-cyber-accent"
           />
         </div>
 
         <div>
           <div className="flex items-center justify-between text-xs font-mono text-cyber-muted mb-1.5">
             <span>Git Unified Patch Diff:</span>
-            <span>Lines: {diffText.split('\n').length}</span>
+            <span className="tabular-nums">Lines: {diffText.split('\n').length}</span>
           </div>
           <textarea
             value={diffText}
             onChange={(e) => setDiffText(e.target.value)}
             rows={8}
-            className="w-full bg-cyber-dark border border-cyber-border/40 rounded-xl p-4 text-xs font-mono text-emerald-400 focus:outline-none focus:border-cyber-accent leading-relaxed resize-y selection:bg-cyber-accent selection:text-cyber-bg"
+            className="w-full bg-cyber-bg border border-cyber-border rounded p-3.5 text-xs font-mono text-cyber-low focus:outline-none focus:border-cyber-accent leading-relaxed resize-y select-text"
             placeholder="Paste your Git unified diff patch here (+ added lines, - removed lines)..."
           />
         </div>
 
-        <div className="flex items-center justify-between pt-2">
-          <span className="text-[11px] font-mono text-cyber-muted">
-            Engine Pipeline: In-Flight Secret Scrubber ➔ AST Engine ➔ Deterministic RBAC ➔ Blast Radius ➔ Gemini LLM
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
+          <span className="text-[11px] font-mono text-cyber-faint">
+            Pipeline: Secret Scrubber ➔ AST Engine ➔ Deterministic RBAC ➔ Blast Radius ➔ Gemini LLM
           </span>
 
           <button
             onClick={handleRunScan}
             disabled={loading}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-cyber-accent text-cyber-dark font-mono font-bold text-xs hover:bg-emerald-300 transition shadow-[0_0_20px_rgba(34,230,184,0.4)] disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 rounded bg-cyber-card text-cyber-accent border border-cyber-border hover:border-cyber-accent font-mono font-medium text-xs transition-colors disabled:opacity-50"
           >
-            {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
+            {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-current" />}
             {loading ? 'ANALYZING DIFF...' : 'EXECUTE DEVSECOPS SCAN'}
           </button>
         </div>
@@ -172,11 +172,11 @@ export const ManualDiffPlayground = () => {
 
       {/* Results View */}
       {scanResult && (
-        <div className="cyber-glass rounded-xl p-6 border border-cyber-border/40 space-y-6 animate-in fade-in duration-300">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyber-border/40 pb-4">
+        <div className="panel rounded p-5 border border-cyber-border space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyber-border pb-4">
             <div>
-              <div className="flex items-center gap-3">
-                <h3 className="text-base font-bold text-white font-mono">Scan Results for {filename}</h3>
+              <div className="flex items-center gap-2.5">
+                <h3 className="text-sm font-bold text-cyber-text font-mono">Scan Results for {filename}</h3>
                 <CyberBadge variant={scanResult.overall_risk || 'LOW'}>{scanResult.overall_risk || 'LOW'}</CyberBadge>
               </div>
               <p className="text-xs text-cyber-muted font-mono mt-1">{scanResult.executive_summary}</p>
@@ -184,7 +184,7 @@ export const ManualDiffPlayground = () => {
 
             <div className="flex items-center gap-3 text-xs font-mono">
               <span className="text-cyber-accent">Engine: {scanResult.ai_engine_used}</span>
-              <span className="text-cyber-muted">Latency: {scanResult.execution_time_ms || scanResult.gatewayElapsedMs}ms</span>
+              <span className="text-cyber-muted tabular-nums">Latency: {scanResult.execution_time_ms || scanResult.gatewayElapsedMs}ms</span>
             </div>
           </div>
 
@@ -194,9 +194,9 @@ export const ManualDiffPlayground = () => {
           )}
 
           {/* Vulnerabilities & Secrets */}
-          <div className="border-t border-cyber-border/30 pt-6">
-            <h4 className="text-xs font-mono font-bold uppercase text-white mb-3 flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-cyber-accent" />
+          <div className="border-t border-cyber-border pt-5">
+            <h4 className="text-xs font-mono font-bold uppercase text-cyber-text mb-3 flex items-center gap-2">
+              <ShieldAlert className="w-3.5 h-3.5 text-cyber-accent" />
               Identified Security Defects & Secrets ({scanResult.vulnerabilities?.length || 0})
             </h4>
             <VulnerabilityMatrix
@@ -207,8 +207,8 @@ export const ManualDiffPlayground = () => {
 
           {/* Automated Remediations */}
           {scanResult.remediations?.length > 0 && (
-            <div className="border-t border-cyber-border/30 pt-6">
-              <h4 className="text-xs font-mono font-bold uppercase text-white mb-3">
+            <div className="border-t border-cyber-border pt-5">
+              <h4 className="text-xs font-mono font-bold uppercase text-cyber-text mb-3">
                 Generated Committable GitHub Suggestions ({scanResult.remediations.length})
               </h4>
               <RemediationViewer remediations={scanResult.remediations} />

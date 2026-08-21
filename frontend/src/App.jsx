@@ -45,16 +45,12 @@ export function App() {
   }, [triageEvents]);
 
   return (
-    <div className="min-h-screen bg-cyber-bg text-cyber-text flex flex-col selection:bg-cyber-accent selection:text-cyber-dark">
-      {/* Background Cyber Glow */}
-      <div className="fixed inset-0 bg-cyber-gradient pointer-events-none" />
-      <div className="fixed inset-0 bg-grid-pattern opacity-15 pointer-events-none" />
-
-      {/* Top Cyber Navigation */}
+    <div className="min-h-screen bg-cyber-bg text-cyber-text flex flex-col">
+      {/* Top Navigation */}
       <Header activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* Main Viewport Content */}
-      <main className="max-w-7xl w-full mx-auto p-6 space-y-6 flex-1 relative z-10">
+      <main className="max-w-7xl w-full mx-auto p-6 space-y-6 flex-1">
         
         {/* Real-Time Triage HUD (Always visible on Command Center and PR views) */}
         {(activeTab === 'command-center' || activeTab === 'pr-reviews') && (
@@ -69,7 +65,7 @@ export function App() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-white font-mono uppercase tracking-wider">
+                  <h3 className="text-xs font-mono font-semibold uppercase tracking-wider text-cyber-muted">
                     Recent PR Triage Stream ({reviews.length})
                   </h3>
                   <button
@@ -83,7 +79,7 @@ export function App() {
               </div>
 
               <div className="space-y-4">
-                <h3 className="text-sm font-bold text-white font-mono uppercase tracking-wider">
+                <h3 className="text-xs font-mono font-semibold uppercase tracking-wider text-cyber-muted">
                   Audit Telemetry
                 </h3>
                 <LiveLogFeed />
@@ -122,8 +118,8 @@ export function App() {
 
       </main>
 
-      {/* Cyber Footer */}
-      <footer className="border-t border-cyber-border/20 py-4 px-6 text-center text-xs font-mono text-cyber-muted relative z-10">
+      {/* Engineering Footer */}
+      <footer className="border-t border-cyber-border py-4 px-6 text-center text-xs font-mono text-cyber-muted">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>CodeSentinel Enterprise AI DevSecOps Agent • GitHub PR Reviewer</span>
           <span>Dual Runtime: Node.js Control Plane + Python FastAPI Worker Plane + Gemini API</span>
