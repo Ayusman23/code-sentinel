@@ -15,18 +15,19 @@ export const TriagePipeline = () => {
     { id: 'COMPLETED', label: '6. Published', icon: CheckCircle, desc: 'GitHub Check Passed' }
   ];
 
+  const isIdle = !activePipelineJob || activePipelineJob.stage === 'IDLE';
   const currentStage = activePipelineJob?.stage || 'IDLE';
-  const percent = activePipelineJob?.percent || 0;
+  const percent = isIdle ? 0 : (activePipelineJob?.percent || 0);
 
   return (
     <div className="panel rounded p-5">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <Activity className="w-4 h-4 text-cyber-accent" />
+          <Activity className={`w-4 h-4 ${isIdle ? 'text-cyber-muted' : 'text-cyber-accent animate-pulse'}`} />
           <h2 className="text-xs font-mono font-bold tracking-wider text-cyber-text uppercase">Real-Time PR Triage Pipeline</h2>
         </div>
         <div className="flex items-center gap-2">
-          {activePipelineJob ? (
+          {!isIdle ? (
             <CyberBadge variant={activePipelineJob.stage === 'COMPLETED' ? 'COMPLETED' : 'ANALYZING'}>
               {activePipelineJob.repoOwner}/{activePipelineJob.repoName}#{activePipelineJob.prNumber}
             </CyberBadge>
@@ -39,11 +40,11 @@ export const TriagePipeline = () => {
         </div>
       </div>
 
-      {/* Progress Bar */}
+      {/* Progress Bar (0% at idle, fills only during active job execution) */}
       <div className="w-full bg-cyber-bg h-1.5 rounded overflow-hidden mb-5 border border-cyber-border">
         <div
-          className="h-full bg-cyber-accent transition-all duration-300 rounded"
-          style={{ width: `${activePipelineJob ? percent : 100}%` }}
+          className={`h-full transition-all duration-300 rounded ${isIdle ? 'w-0 bg-transparent' : 'bg-cyber-accent'}`}
+          style={{ width: `${percent}%` }}
         />
       </div>
 
@@ -51,32 +52,32 @@ export const TriagePipeline = () => {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
         {stages.map((st, idx) => {
           const Icon = st.icon;
-          const isCurrent = currentStage === st.id;
-          const isDone = activePipelineJob && percent >= (idx + 1) * 16;
+          const isCurrent = !isIdle && currentStage === st.id;
+          const isDone = !isIdle && percent >= (idx + 1) * 16;
 
           return (
             <div
               key={st.id}
               className={`p-3 rounded border transition-colors duration-150 relative ${
                 isCurrent
-                  ? 'bg-cyber-card border-cyber-accent text-cyber-accent'
+                  ? 'bg-cyber-card border-cyber-accent text-cyber-accent shadow-[0_0_10px_rgba(91,141,239,0.15)]'
                   : isDone
                   ? 'bg-cyber-card border-cyber-low/40 text-cyber-low'
-                  : 'bg-cyber-bg border-cyber-border text-cyber-muted'
+                  : 'bg-cyber-bg border-cyber-border text-cyber-muted opacity-85'
               }`}
             >
               <div className="flex items-center justify-between mb-1.5">
-                <Icon className={`w-3.5 h-3.5 ${isCurrent ? 'text-cyber-accent' : isDone ? 'text-cyber-low' : 'text-cyber-muted'}`} />
-                <span className="text-[10px] font-mono opacity-60">0{idx + 1}</span>
+                <Icon className={`w-3.5 h-3.5 ${isCurrent ? 'text-cyber-accent' : isDone ? 'text-cyber-low' : 'text-cyber-faint'}`} />
+                <span className="text-[10px] font-mono opacity-50">0{idx + 1}</span>
               </div>
               <p className={`text-xs font-semibold font-mono ${isCurrent ? 'text-cyber-text' : isDone ? 'text-cyber-low' : 'text-cyber-muted'}`}>{st.label}</p>
-              <p className="text-[10px] font-mono text-cyber-muted mt-0.5 truncate">{st.desc}</p>
+              <p className="text-[10px] font-mono text-cyber-faint mt-0.5 truncate">{st.desc}</p>
             </div>
           );
         })}
       </div>
 
-      {/* Dynamic Status Log Line */}
+      {/* Dynamic Status Log Line during active jobs */}
       {activePipelineJob?.message && (
         <div className="mt-4 p-2.5 rounded bg-cyber-bg border border-cyber-border flex items-center justify-between text-xs font-mono">
           <div className="flex items-center gap-2 text-cyber-accent">

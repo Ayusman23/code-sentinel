@@ -12,14 +12,33 @@ export const MetricsGrid = ({ metrics }) => {
     avgLatencyMs: 380
   };
 
+  // Severity color mapping for Blast Radius (Lower is better)
+  const blastRiskColor = summary.avgBlastRadius > 65
+    ? 'text-cyber-critical'
+    : (summary.avgBlastRadius > 35 ? 'text-cyber-high' : 'text-cyber-low');
+
+  const blastBarColor = summary.avgBlastRadius > 65
+    ? 'bg-cyber-critical'
+    : (summary.avgBlastRadius > 35 ? 'bg-cyber-high' : 'bg-cyber-low');
+
+  // Health Score color mapping (Higher is better)
+  const healthRiskColor = summary.healthScore >= 70
+    ? 'text-cyber-low'
+    : (summary.healthScore >= 45 ? 'text-cyber-high' : 'text-cyber-critical');
+
+  const healthBarColor = summary.healthScore >= 70
+    ? 'bg-cyber-low'
+    : (summary.healthScore >= 45 ? 'bg-cyber-high' : 'bg-cyber-critical');
+
   const cards = [
     {
       title: 'Repository Health Index',
       value: `${summary.healthScore}/100`,
       icon: ShieldCheck,
-      color: summary.healthScore >= 70 ? 'text-cyber-low' : 'text-cyber-high',
+      color: healthRiskColor,
       subtitle: 'Based on zero-trust AST & RBAC telemetry',
-      progress: summary.healthScore
+      progress: summary.healthScore,
+      barColor: healthBarColor
     },
     {
       title: 'Critical CVE/RBAC Blocked',
@@ -41,9 +60,10 @@ export const MetricsGrid = ({ metrics }) => {
       title: 'Avg. Architectural Blast Radius',
       value: `${summary.avgBlastRadius}/100`,
       icon: Bomb,
-      color: summary.avgBlastRadius > 50 ? 'text-cyber-high' : 'text-cyber-low',
+      color: blastRiskColor,
       subtitle: 'Holistic failure surface propagation',
-      progress: summary.avgBlastRadius
+      progress: summary.avgBlastRadius,
+      barColor: blastBarColor
     },
     {
       title: 'High-Signal Noise Suppressed',
@@ -58,7 +78,7 @@ export const MetricsGrid = ({ metrics }) => {
       value: `${summary.avgLatencyMs}ms`,
       icon: Zap,
       color: 'text-cyber-accent',
-      subtitle: 'Asynchronous 202 webhook response',
+      subtitle: 'Asynchronous 200 webhook response',
       badge: 'SUB-SECOND'
     }
   ];
@@ -89,7 +109,7 @@ export const MetricsGrid = ({ metrics }) => {
             {card.progress !== undefined && (
               <div className="w-full bg-cyber-bg h-1 rounded mt-3 overflow-hidden border border-cyber-border">
                 <div
-                  className={`h-full rounded ${card.progress > 70 ? 'bg-cyber-low' : card.progress > 40 ? 'bg-cyber-high' : 'bg-cyber-critical'}`}
+                  className={`h-full rounded ${card.barColor || 'bg-cyber-accent'}`}
                   style={{ width: `${card.progress}%` }}
                 />
               </div>
