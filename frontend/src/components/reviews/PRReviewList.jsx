@@ -1,12 +1,26 @@
 import React, { useState } from 'react';
-import { Search, Filter, GitPullRequest, Bomb, ShieldAlert, ArrowUpRight, RefreshCw, KeyRound } from 'lucide-react';
+import { Search, Filter, GitPullRequest, Bomb, ShieldAlert, ArrowUpRight, RefreshCw, KeyRound, ChevronDown, ChevronUp, CheckCircle, Lock } from 'lucide-react';
 import { CyberBadge } from '../common/CyberBadge';
 import { PRDetailModal } from './PRDetailModal';
 
 export const PRReviewList = ({ reviews = [], loading = false, onRefresh }) => {
   const [selectedReview, setSelectedReview] = useState(null);
+  const [expandedPrIds, setExpandedPrIds] = useState(new Set());
   const [search, setSearch] = useState('');
   const [riskFilter, setRiskFilter] = useState('ALL');
+
+  const toggleInlineExpand = (prId, e) => {
+    e.stopPropagation();
+    setExpandedPrIds(prev => {
+      const next = new Set(prev);
+      if (next.has(prId)) {
+        next.delete(prId);
+      } else {
+        next.add(prId);
+      }
+      return next;
+    });
+  };
 
   const filteredReviews = reviews.filter((r) => {
     const matchesSearch =
@@ -65,7 +79,7 @@ export const PRReviewList = ({ reviews = [], loading = false, onRefresh }) => {
         </div>
       </div>
 
-      {/* Reviews Table / Cards */}
+      {/* Reviews Table / Cards with Progressive Disclosure */}
       <div className="space-y-2.5">
         {filteredReviews.length === 0 ? (
           <div className="p-12 rounded panel text-center border border-cyber-border font-mono text-cyber-muted">
@@ -74,64 +88,131 @@ export const PRReviewList = ({ reviews = [], loading = false, onRefresh }) => {
           </div>
         ) : (
           filteredReviews.map((review) => {
+            const prKey = review._id || review.prId;
+            const isExpanded = expandedPrIds.has(prKey);
             const risk = review.overallRisk || 'LOW';
             const blast = review.blastRadius?.overallScore || 0;
             const secrets = (review.secretsIntercepted || []).length;
             const vulns = (review.vulnerabilities || []).length;
-
             const stateClass = `state-${risk.toLowerCase()}`;
 
             return (
               <div
-                key={review._id || review.prId}
-                onClick={() => setSelectedReview(review)}
-                className={`diff-card ${stateClass} p-4 rounded cursor-pointer transition-colors duration-150 group flex flex-col md:flex-row md:items-center justify-between gap-4`}
+                key={prKey}
+                className={`diff-card ${stateClass} p-4 rounded transition-all duration-150 flex flex-col gap-3`}
               >
-                <div className="space-y-1.5 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-mono font-medium px-2 py-0.2 rounded bg-cyber-bg text-cyber-accent border border-cyber-border">
-                      {review.prId || `${review.repoOwner}/${review.repoName}#${review.prNumber}`}
-                    </span>
-                    <CyberBadge variant={risk}>{risk}</CyberBadge>
-                    <span className="text-xs font-mono text-cyber-muted">@{review.author || 'dev'}</span>
-                  </div>
-
-                  <h3 className="text-sm font-semibold text-cyber-text group-hover:text-cyber-accent transition-colors font-sans">
-                    {review.title}
-                  </h3>
-
-                  <p className="text-xs text-cyber-muted line-clamp-1 font-sans">
-                    {review.executiveSummary || 'Automated DevSecOps PR review executed.'}
-                  </p>
-                </div>
-
-                {/* Metrics Pill Group */}
-                <div className="flex items-center gap-3 text-xs font-mono shrink-0">
-                  {/* Blast Radius Pill */}
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-cyber-bg border border-cyber-border">
-                    <Bomb className={`w-3.5 h-3.5 ${blast > 50 ? 'text-cyber-critical' : 'text-cyber-accent'}`} />
-                    <span className="text-cyber-muted">Blast:</span>
-                    <span className={`font-bold tabular-nums ${blast > 50 ? 'text-cyber-critical' : 'text-cyber-text'}`}>{blast}/100</span>
-                  </div>
-
-                  {/* Secrets Count */}
-                  {secrets > 0 && (
-                    <div className="flex items-center gap-1 px-2 py-1 rounded bg-cyber-high/10 border border-cyber-high/30 text-cyber-high">
-                      <KeyRound className="w-3.5 h-3.5" />
-                      <span className="tabular-nums">{secrets}</span>
+                {/* Main Summary Header Row */}
+                <div
+                  onClick={() => setSelectedReview(review)}
+                  className="flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer group"
+                >
+                  <div className="space-y-1.5 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-mono font-medium px-2 py-0.2 rounded bg-cyber-bg text-cyber-accent border border-cyber-border">
+                        {review.prId || `${review.repoOwner}/${review.repoName}#${review.prNumber}`}
+                      </span>
+                      <CyberBadge variant={risk}>{risk}</CyberBadge>
+                      <span className="text-xs font-mono text-cyber-muted">@{review.author || 'dev'}</span>
                     </div>
-                  )}
 
-                  {/* Vulnerabilities Count */}
-                  <div className="flex items-center gap-1 px-2.5 py-1 rounded bg-cyber-bg border border-cyber-border text-cyber-muted">
-                    <ShieldAlert className="w-3.5 h-3.5 text-cyber-accent" />
-                    <span className="tabular-nums">{vulns} findings</span>
+                    <h3 className="text-sm font-semibold text-cyber-text group-hover:text-cyber-accent transition-colors font-sans">
+                      {review.title}
+                    </h3>
+
+                    <p className="text-xs text-cyber-muted line-clamp-1 font-sans">
+                      {review.executiveSummary || 'Automated DevSecOps PR review executed.'}
+                    </p>
                   </div>
 
-                  <div className="p-1.5 rounded bg-cyber-bg border border-cyber-border text-cyber-muted group-hover:text-cyber-accent group-hover:border-cyber-accent transition-colors">
-                    <ArrowUpRight className="w-4 h-4" />
+                  {/* Metrics Pill Group & Action Buttons */}
+                  <div className="flex items-center gap-2 text-xs font-mono shrink-0">
+                    
+                    {/* Blast Radius Pill */}
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-cyber-bg border border-cyber-border">
+                      <Bomb className={`w-3.5 h-3.5 ${blast > 50 ? 'text-cyber-critical' : 'text-cyber-accent'}`} />
+                      <span className="text-cyber-muted">Blast:</span>
+                      <span className={`font-bold tabular-nums ${blast > 50 ? 'text-cyber-critical' : 'text-cyber-text'}`}>{blast}/100</span>
+                    </div>
+
+                    {/* Secrets Count */}
+                    {secrets > 0 && (
+                      <div className="flex items-center gap-1 px-2 py-1 rounded bg-cyber-critical/10 border border-cyber-critical/30 text-cyber-critical">
+                        <KeyRound className="w-3.5 h-3.5" />
+                        <span className="tabular-nums font-bold">{secrets}</span>
+                      </div>
+                    )}
+
+                    {/* Vulnerabilities Count */}
+                    <div className="flex items-center gap-1 px-2.5 py-1 rounded bg-cyber-bg border border-cyber-border text-cyber-muted">
+                      <ShieldAlert className="w-3.5 h-3.5 text-cyber-accent" />
+                      <span className="tabular-nums">{vulns} findings</span>
+                    </div>
+
+                    {/* Quick Inline Expander Toggle */}
+                    <button
+                      onClick={(e) => toggleInlineExpand(prKey, e)}
+                      title={isExpanded ? 'Collapse preview' : 'Expand quick summary'}
+                      className="p-1.5 rounded bg-cyber-bg border border-cyber-border hover:border-cyber-borderHover text-cyber-muted hover:text-cyber-text transition-colors"
+                    >
+                      {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </button>
+
+                    {/* Open Full Inspection Modal */}
+                    <div
+                      title="Open full inspection report"
+                      className="p-1.5 rounded bg-cyber-bg border border-cyber-border text-cyber-muted group-hover:text-cyber-accent group-hover:border-cyber-accent transition-colors"
+                    >
+                      <ArrowUpRight className="w-4 h-4" />
+                    </div>
                   </div>
                 </div>
+
+                {/* Progressive Disclosure Inline Drawer */}
+                {isExpanded && (
+                  <div className="pt-3 mt-1 border-t border-cyber-border/60 space-y-3 font-mono text-xs animate-in fade-in duration-150">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+                      <div className="p-2.5 rounded bg-cyber-bg border border-cyber-border">
+                        <span className="text-cyber-muted block mb-1">Dependency Depth:</span>
+                        <span className="font-bold text-cyber-text">{review.blastRadius?.breakdown?.dependencyDepthScore || 0}%</span>
+                      </div>
+                      <div className="p-2.5 rounded bg-cyber-bg border border-cyber-border">
+                        <span className="text-cyber-muted block mb-1">API Surface Risk:</span>
+                        <span className="font-bold text-cyber-text">{review.blastRadius?.breakdown?.apiSurfaceScore || 0}%</span>
+                      </div>
+                      <div className="p-2.5 rounded bg-cyber-bg border border-cyber-border">
+                        <span className="text-cyber-muted block mb-1">RBAC Exposure:</span>
+                        <span className="font-bold text-cyber-text">{review.blastRadius?.breakdown?.rbacExposureScore || 0}%</span>
+                      </div>
+                    </div>
+
+                    {/* Findings Preview List */}
+                    {review.vulnerabilities && review.vulnerabilities.length > 0 && (
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-cyber-muted uppercase tracking-wider">Detected Findings:</span>
+                        <div className="space-y-1">
+                          {review.vulnerabilities.slice(0, 2).map((v, i) => (
+                            <div key={i} className="p-2 rounded bg-cyber-bg border border-cyber-border flex items-center justify-between">
+                              <span className="text-cyber-text text-[11px] truncate mr-2">{v.title}</span>
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyber-critical/10 text-cyber-critical border border-cyber-critical/20 font-bold shrink-0">
+                                {v.cweId || 'CWE-306'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end pt-1">
+                      <button
+                        onClick={() => setSelectedReview(review)}
+                        className="text-[11px] text-cyber-accent hover:underline flex items-center gap-1 font-bold"
+                      >
+                        <span>View Full 5-Axis AST / RBAC Failure Report</span>
+                        <ArrowUpRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })

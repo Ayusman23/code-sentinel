@@ -7,6 +7,12 @@
     background-color: #0B0C10;
     color: #E7E9EE;
     font-family: 'Inter', sans-serif;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  html.light-theme body {
+    background-color: #F6F8FA;
+    color: #1F2328;
   }
 }
 
@@ -14,6 +20,12 @@
 .panel {
   background-color: #14161C;
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+html.light-theme .panel {
+  background-color: #FFFFFF;
+  border: 1px solid #D0D7DE;
+  box-shadow: 0 1px 3px rgba(31, 35, 40, 0.04);
 }
 
 .panel-hover {
@@ -25,6 +37,16 @@
 .panel-hover:hover {
   background-color: #1A1D25;
   border-color: rgba(255, 255, 255, 0.16);
+}
+
+html.light-theme .panel-hover {
+  background-color: #FFFFFF;
+  border: 1px solid #D0D7DE;
+}
+
+html.light-theme .panel-hover:hover {
+  background-color: #F3F4F6;
+  border-color: #0969DA;
 }
 
 /* Diff Card with left border indicator */
@@ -39,6 +61,17 @@
 .diff-card:hover {
   background-color: #1A1D25;
   border-color: rgba(255, 255, 255, 0.16);
+}
+
+html.light-theme .diff-card {
+  background-color: #FFFFFF;
+  border: 1px solid #D0D7DE;
+  border-left-width: 4px;
+}
+
+html.light-theme .diff-card:hover {
+  background-color: #F8FAFC;
+  border-color: #CBD5E1;
 }
 
 .diff-card.state-critical {
@@ -72,6 +105,10 @@
   background-color: rgba(255, 255, 255, 0.08);
 }
 
+html.light-theme .ledger-rail::before {
+  background-color: #D0D7DE;
+}
+
 .ledger-node {
   position: relative;
   z-index: 1;
@@ -83,6 +120,11 @@
   justify-content: center;
   background-color: #14161C;
   border: 2px solid rgba(255, 255, 255, 0.16);
+}
+
+html.light-theme .ledger-node {
+  background-color: #FFFFFF;
+  border-color: #D0D7DE;
 }
 
 .ledger-node.active {
@@ -110,9 +152,17 @@
   background: #0B0C10;
 }
 
+html.light-theme ::-webkit-scrollbar-track {
+  background: #F6F8FA;
+}
+
 ::-webkit-scrollbar-thumb {
   background: #1A1D25;
   border-radius: 3px;
+}
+
+html.light-theme ::-webkit-scrollbar-thumb {
+  background: #D0D7DE;
 }
 
 ::-webkit-scrollbar-thumb:hover {
