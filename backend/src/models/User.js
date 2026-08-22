@@ -4,14 +4,17 @@ const bcrypt = require('bcryptjs');
 const UserSchema = new mongoose.Schema({
   email: {
     type: String,
-    required: true,
+    required: [true, 'Email is required'],
     unique: true,
     lowercase: true,
-    trim: true
+    trim: true,
+    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email address']
   },
   password: {
     type: String,
-    required: true
+    required: function() {
+      return this.authProvider !== 'google';
+    }
   },
   name: {
     type: String,
@@ -26,7 +29,18 @@ const UserSchema = new mongoose.Schema({
   },
   department: {
     type: String,
-    default: 'SecOps Engineering'
+    default: 'Platform Engineering'
+  },
+  authProvider: {
+    type: String,
+    enum: ['local', 'google'],
+    default: 'local'
+  },
+  googleId: {
+    type: String
+  },
+  avatar: {
+    type: String
   },
   isDemo: {
     type: Boolean,
@@ -40,6 +54,7 @@ const UserSchema = new mongoose.Schema({
 
 // Compare password helper
 UserSchema.methods.comparePassword = async function(candidatePassword) {
+  if (!this.password) return false;
   return bcrypt.compare(candidatePassword, this.password);
 };
 

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { loginApi, demoLoginApi, getMeApi } from '../services/api';
+import { loginApi, registerApi, googleAuthApi, demoLoginApi, getMeApi } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -71,7 +71,6 @@ export const AuthProvider = ({ children }) => {
         return null;
       }
     }
-    // If a role was previously selected in localStorage, default to that demo user
     const legacyRole = localStorage.getItem('codesentinel_role') || 'ADMIN';
     return DEFAULT_DEMO_USERS[legacyRole] || DEFAULT_DEMO_USERS.ADMIN;
   });
@@ -106,6 +105,42 @@ export const AuthProvider = ({ children }) => {
         return { success: true, user: res.user };
       }
       throw new Error(res.message || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const register = async (payload) => {
+    setLoading(true);
+    try {
+      const res = await registerApi(payload);
+      if (res.token && res.user) {
+        setToken(res.token);
+        setUser(res.user);
+        localStorage.setItem('codesentinel_jwt', res.token);
+        localStorage.setItem('codesentinel_user', JSON.stringify(res.user));
+        localStorage.setItem('codesentinel_role', res.user.role);
+        return { success: true, user: res.user };
+      }
+      throw new Error(res.message || 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const googleAuth = async (payload) => {
+    setLoading(true);
+    try {
+      const res = await googleAuthApi(payload);
+      if (res.token && res.user) {
+        setToken(res.token);
+        setUser(res.user);
+        localStorage.setItem('codesentinel_jwt', res.token);
+        localStorage.setItem('codesentinel_user', JSON.stringify(res.user));
+        localStorage.setItem('codesentinel_role', res.user.role);
+        return { success: true, user: res.user };
+      }
+      throw new Error(res.message || 'Google authentication failed');
     } finally {
       setLoading(false);
     }
@@ -169,6 +204,8 @@ export const AuthProvider = ({ children }) => {
         ROLES,
         loading,
         login,
+        register,
+        googleAuth,
         demoLogin,
         logout,
         hasPermission,

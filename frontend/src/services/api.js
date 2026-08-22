@@ -36,6 +36,16 @@ export const loginApi = async (email, password) => {
   return res.data;
 };
 
+export const registerApi = async ({ email, password, name, role, department }) => {
+  const res = await api.post('/auth/register', { email, password, name, role, department });
+  return res.data;
+};
+
+export const googleAuthApi = async (payload) => {
+  const res = await api.post('/auth/google', payload);
+  return res.data;
+};
+
 export const demoLoginApi = async (role) => {
   const res = await api.post('/auth/demo-login', { role });
   return res.data;

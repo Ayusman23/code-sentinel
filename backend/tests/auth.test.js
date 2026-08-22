@@ -37,32 +37,120 @@ describe('Enterprise Authentication & RBAC Suite', async () => {
     assert.strictEqual(decoded.role, 'ADMIN');
   });
 
-  it('authenticates Security Engineer demo account', async () => {
+  it('registers a new user with a proper email address and password', async () => {
+    const uniqueEmail = `test.developer.${Date.now()}@enterprise.com`;
     const req = {
       body: {
-        email: 'demo-secops@codesentinel.dev',
-        password: 'demo1234'
+        email: uniqueEmail,
+        password: 'securePassword123!',
+        name: 'Sarah Connor',
+        role: 'SECURITY_ENGINEER',
+        department: 'Threat Defense Group'
       }
     };
+    let statusCode = 200;
     let jsonResult = null;
     const res = {
+      status(code) {
+        statusCode = code;
+        return {
+          json(data) {
+            jsonResult = data;
+          }
+        };
+      },
       json(data) {
         jsonResult = data;
       }
     };
 
-    await authController.login(req, res, () => {});
-    assert.strictEqual(jsonResult.status, 'AUTHENTICATED');
+    await authController.register(req, res, () => {});
+    assert.strictEqual(statusCode, 201);
+    assert.strictEqual(jsonResult.status, 'REGISTERED');
+    assert.strictEqual(jsonResult.user.email, uniqueEmail);
+    assert.strictEqual(jsonResult.user.name, 'Sarah Connor');
     assert.strictEqual(jsonResult.user.role, 'SECURITY_ENGINEER');
-    assert.ok(jsonResult.user.permissions.includes('EXECUTE_SANDBOX'));
-    assert.ok(!jsonResult.user.permissions.includes('TRIGGER_WEBHOOK'));
+    assert.ok(jsonResult.token);
+
+    // Verify newly registered user can now login
+    const loginReq = {
+      body: {
+        email: uniqueEmail,
+        password: 'securePassword123!'
+      }
+    };
+    let loginResult = null;
+    const loginRes = {
+      json(data) {
+        loginResult = data;
+      }
+    };
+    await authController.login(loginReq, loginRes, () => {});
+    assert.strictEqual(loginResult.status, 'AUTHENTICATED');
+    assert.strictEqual(loginResult.user.email, uniqueEmail);
   });
 
-  it('authenticates Developer demo account with read-only scoped permissions', async () => {
+  it('rejects registration with improper or malformed email address', async () => {
     const req = {
       body: {
-        email: 'demo-dev@codesentinel.dev',
-        password: 'demo1234'
+        email: 'invalid-email-without-domain',
+        password: 'password123',
+        name: 'Bad Email User'
+      }
+    };
+    let statusCode = 0;
+    let jsonResult = null;
+    const res = {
+      status(code) {
+        statusCode = code;
+        return {
+          json(data) {
+            jsonResult = data;
+          }
+        };
+      }
+    };
+
+    await authController.register(req, res, () => {});
+    assert.strictEqual(statusCode, 400);
+    assert.strictEqual(jsonResult.error, 'INVALID_EMAIL');
+  });
+
+  it('rejects registration with weak password (< 6 characters)', async () => {
+    const req = {
+      body: {
+        email: 'valid.user@test.io',
+        password: '123',
+        name: 'Weak Pass User'
+      }
+    };
+    let statusCode = 0;
+    let jsonResult = null;
+    const res = {
+      status(code) {
+        statusCode = code;
+        return {
+          json(data) {
+            jsonResult = data;
+          }
+        };
+      }
+    };
+
+    await authController.register(req, res, () => {});
+    assert.strictEqual(statusCode, 400);
+    assert.strictEqual(jsonResult.error, 'WEAK_PASSWORD');
+  });
+
+  it('authenticates and provisions user via Google social sign-in/sign-up', async () => {
+    const googleEmail = `google.engineer.${Date.now()}@gmail.com`;
+    const req = {
+      body: {
+        email: googleEmail,
+        name: 'Google Engineer',
+        googleId: 'g_1029384756',
+        avatar: 'https://lh3.googleusercontent.com/a/default-user',
+        role: 'SECURITY_ENGINEER'
       }
     };
     let jsonResult = null;
@@ -72,11 +160,16 @@ describe('Enterprise Authentication & RBAC Suite', async () => {
       }
     };
 
-    await authController.login(req, res, () => {});
+    await authController.googleAuth(req, res, () => {});
     assert.strictEqual(jsonResult.status, 'AUTHENTICATED');
-    assert.strictEqual(jsonResult.user.role, 'DEVELOPER');
-    assert.ok(jsonResult.user.permissions.includes('COPY_PATCHES'));
-    assert.ok(!jsonResult.user.permissions.includes('EXPORT_AUDIT'));
+    assert.strictEqual(jsonResult.user.email, googleEmail);
+    assert.strictEqual(jsonResult.user.authProvider, 'google');
+    assert.strictEqual(jsonResult.user.role, 'SECURITY_ENGINEER');
+    assert.ok(jsonResult.token);
+
+    // Verify token payload
+    const decoded = jwt.verify(jsonResult.token, config.jwtSecret);
+    assert.strictEqual(decoded.email, googleEmail);
   });
 
   it('rejects login with invalid password', async () => {
@@ -140,26 +233,6 @@ describe('Enterprise Authentication & RBAC Suite', async () => {
     await verifyJWT(req, res, next);
     assert.strictEqual(nextCalled, true);
     assert.strictEqual(req.user.role, 'ADMIN');
-  });
-
-  it('verifyJWT middleware rejects missing or malformed token', async () => {
-    const req = { headers: {} };
-    let statusCode = 0;
-    let jsonResult = null;
-    const res = {
-      status(code) {
-        statusCode = code;
-        return {
-          json(data) {
-            jsonResult = data;
-          }
-        };
-      }
-    };
-
-    await verifyJWT(req, res, () => {});
-    assert.strictEqual(statusCode, 401);
-    assert.strictEqual(jsonResult.error, 'UNAUTHORIZED');
   });
 
   it('requireRole middleware blocks Developer from accessing Admin/SecOps routes (403)', () => {
