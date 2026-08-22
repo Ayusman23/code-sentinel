@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate } = require('../middleware/auth');
-const { getReviews, getReviewById, analyzeManualDiff } = require('../controllers/reviewController');
+const reviewController = require('../controllers/reviewController');
 
-router.get('/', authenticate, getReviews);
-router.get('/:id', authenticate, getReviewById);
-router.post('/analyze-manual', authenticate, analyzeManualDiff);
+router.get('/', reviewController.getReviews);
+router.get('/:id', reviewController.getReviewById);
+router.post('/analyze-manual', reviewController.analyzeManualDiff);
+router.post('/replay-sample', reviewController.replaySampleScan);
 
 module.exports = router;

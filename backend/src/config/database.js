@@ -7,7 +7,8 @@ let isConnected = false;
 const inMemoryStore = {
   reviews: new Map(),
   auditLogs: [],
-  repoHealth: new Map()
+  repoHealth: new Map(),
+  users: new Map()
 };
 
 const connectDB = async () => {

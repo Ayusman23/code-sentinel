@@ -1,7 +1,36 @@
+const bcrypt = require('bcryptjs');
 const PRReview = require('../models/PRReview');
 const AuditLog = require('../models/AuditLog');
 const Repository = require('../models/Repository');
+const User = require('../models/User');
 const { inMemoryStore } = require('./database');
+
+const DEMO_USERS = [
+  {
+    email: 'demo-admin@codesentinel.dev',
+    password: 'demo1234',
+    name: 'Alex Vance (SecOps Lead)',
+    role: 'ADMIN',
+    department: 'DevSecOps Governance & Compliance',
+    isDemo: true
+  },
+  {
+    email: 'demo-secops@codesentinel.dev',
+    password: 'demo1234',
+    name: 'Elena Rostova (Security Engineer)',
+    role: 'SECURITY_ENGINEER',
+    department: 'AppSec & Threat Modeling',
+    isDemo: true
+  },
+  {
+    email: 'demo-dev@codesentinel.dev',
+    password: 'demo1234',
+    name: 'Marcus Chen (Software Engineer)',
+    role: 'DEVELOPER',
+    department: 'Platform Core Engineering',
+    isDemo: true
+  }
+];
 
 const SEED_REVIEWS = [
   {
@@ -314,7 +343,33 @@ const seedInitialData = async () => {
       inMemoryStore.reviews.set(rev.prId, { ...rev, _id: `rev_${rev.prNumber}_seed` });
     }
 
-    // 2. Populate MongoDB Atlas if connected and empty
+    // Populate in-memory demo users
+    for (const demoUser of DEMO_USERS) {
+      const hashedPassword = await bcrypt.hash(demoUser.password, 10);
+      inMemoryStore.users.set(demoUser.email, {
+        _id: `user_${demoUser.role.toLowerCase()}_demo`,
+        email: demoUser.email,
+        password: hashedPassword,
+        name: demoUser.name,
+        role: demoUser.role,
+        department: demoUser.department,
+        isDemo: true,
+        createdAt: new Date()
+      });
+    }
+
+    // 2. Populate MongoDB Atlas if connected
+    for (const demoUser of DEMO_USERS) {
+      const existingUser = await User.findOne({ email: demoUser.email }).catch(() => null);
+      const hashedPassword = await bcrypt.hash(demoUser.password, 10);
+      if (!existingUser) {
+        await User.create({
+          ...demoUser,
+          password: hashedPassword
+        }).catch(() => null);
+      }
+    }
+
     const count = await PRReview.countDocuments().catch(() => 1);
     if (count === 0) {
       console.log('[Seed] Seeding database with realistic enterprise PR triage data...');
@@ -330,7 +385,7 @@ const seedInitialData = async () => {
         secretsNeutralizedCount: 5,
         averageBlastRadius: 28,
         averageLatencyMs: 310
-      });
+      }).catch(() => null);
 
       console.log(`[Seed] Successfully seeded ${SEED_REVIEWS.length} enterprise PR reviews.`);
     }
@@ -339,4 +394,4 @@ const seedInitialData = async () => {
   }
 };
 
-module.exports = { seedInitialData, SEED_REVIEWS };
+module.exports = { seedInitialData, SEED_REVIEWS, DEMO_USERS };

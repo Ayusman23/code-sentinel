@@ -13,6 +13,7 @@ const { initSocket } = require('./services/socketService');
 const { errorHandler } = require('./middleware/errorHandler');
 
 // Route imports
+const authRoutes = require('./routes/authRoutes');
 const webhookRoutes = require('./routes/webhookRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const metricsRoutes = require('./routes/metricsRoutes');
@@ -82,9 +83,11 @@ app.get('/health', (req, res) => {
 });
 
 // API Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/metrics', metricsRoutes);
+app.use('/api/stats', metricsRoutes);
 app.use('/api/audit', auditRoutes);
 
 // Centralized error handler
@@ -102,3 +105,5 @@ server.listen(PORT, async () => {
   console.log(`🤖 AI Engine Worker URL: ${config.aiEngineUrl}`);
   console.log(`=======================================================`);
 });
+
+module.exports = { app, server };

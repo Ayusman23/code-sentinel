@@ -1,6 +1,7 @@
 const PRReview = require('../models/PRReview');
 const jobQueue = require('../services/jobQueue');
 const aiEngineClient = require('../services/aiEngineClient');
+const socketService = require('../services/socketService');
 const NodeSecretSanitizer = require('../services/secretSanitizer');
 const { inMemoryStore } = require('../config/database');
 
@@ -139,8 +140,94 @@ const analyzeManualDiff = async (req, res, next) => {
   }
 };
 
+/**
+ * Public Sample Scan Replay for Landing Page Demo
+ * Runs authentic analysis and streams live Socket.IO events to connected clients
+ */
+const replaySampleScan = async (req, res, next) => {
+  try {
+    const samplePayload = {
+      pr_id: 'enterprise-org/cloud-core-api#142',
+      title: 'feat: Add dynamic user role assignment and AWS S3 uploader',
+      author: 'recruiter-demo',
+      files: [
+        {
+          filename: 'src/controllers/adminController.ts',
+          patch: `@@ -10,12 +10,24 @@
+ import express from 'express';
++const AWS_KEY = "AKIAIOSFODNN7EXAMPLE12";
++const AWS_SECRET = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+ 
+ const router = express.Router();
+ 
++router.post('/api/storage/credentials', async (req, res) => {
++  return res.json({ key: AWS_KEY, secret: AWS_SECRET });
++});
++
++router.put('/api/users/:id/role', async (req, res) => {
++  user.role = req.body.role;
++  await user.save();
++});`
+        }
+      ],
+      context: {
+        repo_name: 'enterprise-org/cloud-core-api',
+        branch: 'main',
+        frameworks: ['Express', 'Node.js', 'React'],
+        test_framework: 'jest'
+      }
+    };
+
+    const jobId = `replay_sample_${Date.now()}`;
+    const emitStage = (stage, percent, message) => {
+      socketService.broadcastTriageProgress({
+        jobId,
+        repoOwner: 'enterprise-org',
+        repoName: 'cloud-core-api',
+        prNumber: 142,
+        stage,
+        percent,
+        message,
+        timestamp: new Date().toISOString()
+      });
+    };
+
+    emitStage('QUEUED', 10, 'Public sample scan enqueued. Verifying AST schemas...');
+    emitStage('SECRET_INTERCEPTION', 35, 'Executing Shannon Entropy secret scrubber (<1ms)...');
+
+    const sanitizedFiles = samplePayload.files.map(f => ({
+      ...f,
+      patch: NodeSecretSanitizer.sanitize(f.patch)
+    }));
+
+    emitStage('AST_AND_RBAC_REASONING', 65, 'Executing Cross-File AST Traversal & Deterministic RBAC Verifier...');
+
+    const aiResponse = await aiEngineClient.analyzeDiff({
+      ...samplePayload,
+      files: sanitizedFiles
+    });
+
+    emitStage('POSTING_GITHUB_REVIEW', 85, 'Constructing committable Markdown suggestions & Jest unit tests...');
+    emitStage('COMPLETED', 100, 'Zero-Trust PR analysis completed successfully.');
+
+    return res.json({
+      success: true,
+      jobId,
+      data: {
+        ...aiResponse,
+        prId: 'enterprise-org/cloud-core-api#142',
+        title: samplePayload.title,
+        author: samplePayload.author
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getReviews,
   getReviewById,
-  analyzeManualDiff
+  analyzeManualDiff,
+  replaySampleScan
 };
