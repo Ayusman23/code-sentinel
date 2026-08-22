@@ -79,7 +79,7 @@ export const AboutBuildModal = ({ isOpen, onClose }) => {
         <div className="p-6 overflow-y-auto space-y-4 font-sans text-xs">
           <div className="p-3 bg-cyber-dark rounded border border-cyber-border/70 font-mono text-[11px] text-cyber-muted flex items-center justify-between">
             <span>Engineering Retrospective Document:</span>
-            <span className="text-cyber-accent font-bold">PROBLEMS_FACED.md</span>
+            <span className="text-cyber-accent font-bold">PROBLEMFACED.md</span>
           </div>
 
           <div className="space-y-3">

@@ -8,7 +8,7 @@
 ## Executive Summary
 Building an enterprise-grade, zero-trust automated pull request reviewer and DevSecOps platform presented intricate distributed systems, AST parsing, cryptographic validation, and LLM orchestration challenges. Unlike toy AI wrappers that synchronously send uninspected code to commercial LLMs, CodeSentinel operates a high-throughput, low-latency pipeline capable of sub-millisecond in-flight secret interception, deterministic RBAC control-flow analysis, cross-file AST contract validation, and resilient multi-runtime cloud orchestration.
 
-This retrospective documents the specific technical hurdles encountered across **Distributed Gateway Ingestion**, **In-Flight Cryptographic Scrubbing**, **Contextual AST & RBAC Parsing**, **LLM Token Management & Resilience**, **Real-Time Telemetry**, and **Multi-Cloud Deployment**, detailing the exact engineering solutions implemented.
+This retrospective documents the specific technical hurdles encountered across **Distributed Gateway Ingestion**, **In-Flight Cryptographic Scrubbing**, **Contextual AST & RBAC Parsing**, **LLM Token Management & Resilience**, **Real-Time Telemetry**, **Zero-Trust Identity & Access Control**, and **Multi-Cloud Deployment**, detailing the exact engineering solutions implemented.
 
 ---
 
@@ -48,7 +48,7 @@ exports.handleGitHubWebhook = async (req, res, next) => {
 * **The Root Cause:** JSON serialization is non-deterministic regarding key order and whitespace formatting; any mutation of raw payload bytes invalidates HMAC cryptographic verification.
 * **The Engineering Solution:**
   * Configured Express body parser middleware with a custom `verify` callback in `backend/src/server.js` to capture the immutable raw byte buffer before JSON deserialization.
-  * Implemented constant-time string comparison using Node’s `crypto.timingSafeEqual` in `backend/src/utils/cryptoVerify.js` to protect against side-channel timing attacks.
+  * Implemented constant-time string comparison using Node’s `crypto.timingSafeEqual` in `backend/src/middleware/webhookVerify.js` to protect against side-channel timing attacks.
 
 ```javascript
 // backend/src/server.js
@@ -60,7 +60,7 @@ app.use(express.json({
   }
 }));
 
-// backend/src/utils/cryptoVerify.js
+// backend/src/middleware/webhookVerify.js
 const verifyGitHubSignature = (rawBody, signatureHeader, secret) => {
   if (!signatureHeader || !rawBody) return false;
   const hmac = crypto.createHmac('sha256', secret);
@@ -293,4 +293,5 @@ def rotate_key(self) -> bool:
 | **RBAC Verifier** | Auth bypass detection | **100% deterministic detection** for CWE-306 / CWE-269 / CWE-639 |
 | **Noise Filter** | Signal-to-noise ratio | **> 95% signal retention** (Stylistic linter noise eliminated) |
 | **AI Resilience** | Circuit breaker & Key pool | **100% uptime SLA** via multi-key 429 rotation and local fallback |
-| **Test Suite** | Automated test coverage | **23 passed tests** across Python (16) and Node.js (7) |
+| **Identity & Access** | Authentication & RBAC | **JWT Role Claims + Google Social Auth + Email Regex + 1-Click Demos** |
+| **Test Suite** | Automated test coverage | **33 passed tests** across Python (16) and Node.js (17) |
