@@ -172,6 +172,52 @@ describe('Enterprise Authentication & RBAC Suite', async () => {
     assert.strictEqual(decoded.email, googleEmail);
   });
 
+  it('rejects forged or invalid Google ID Token with HTTP 401', async () => {
+    const req = {
+      body: {
+        idToken: 'invalid.forged.google.jwt.token'
+      }
+    };
+    let statusCode = 200;
+    let jsonResult = null;
+    const res = {
+      status(code) {
+        statusCode = code;
+        return {
+          json(data) {
+            jsonResult = data;
+          }
+        };
+      }
+    };
+
+    await authController.googleAuth(req, res, () => {});
+    assert.strictEqual(statusCode, 401);
+    assert.strictEqual(jsonResult.error, 'INVALID_GOOGLE_TOKEN');
+  });
+
+  it('rejects empty Google auth payload with HTTP 400', async () => {
+    const req = {
+      body: {}
+    };
+    let statusCode = 200;
+    let jsonResult = null;
+    const res = {
+      status(code) {
+        statusCode = code;
+        return {
+          json(data) {
+            jsonResult = data;
+          }
+        };
+      }
+    };
+
+    await authController.googleAuth(req, res, () => {});
+    assert.strictEqual(statusCode, 400);
+    assert.strictEqual(jsonResult.error, 'BAD_REQUEST');
+  });
+
   it('rejects login with invalid password', async () => {
     const req = {
       body: {

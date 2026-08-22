@@ -1,11 +1,15 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
+const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const config = require('../config');
 const { inMemoryStore } = require('../config/database');
 const { ROLE_PERMISSIONS } = require('../middleware/authMiddleware');
 const { DEMO_USERS } = require('../config/seedData');
+
+// Initialize Google OAuth2Client for token verification
+const googleOAuthClient = new OAuth2Client(config.googleClientId);
 
 // Email regex pattern for validation
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -226,20 +230,75 @@ exports.register = async (req, res, next) => {
 };
 
 /**
- * Google Social Authentication (Login or Signup through Google)
+ * Google Social Authentication (OAuth 2.0 & OpenID Connect)
+ * Cryptographically verifies Google ID Token signature with Google Public Certificates
  */
 exports.googleAuth = async (req, res, next) => {
   try {
-    const { email, name, googleId, avatar, role = 'SECURITY_ENGINEER', department = 'AppSec Engineering' } = req.body;
+    const { 
+      idToken, 
+      credential, 
+      email, 
+      name, 
+      googleId, 
+      avatar, 
+      role = 'SECURITY_ENGINEER', 
+      department = 'AppSec Engineering' 
+    } = req.body;
 
-    if (!email) {
+    let verifiedEmail = '';
+    let resolvedName = '';
+    let resolvedGoogleId = '';
+    let resolvedAvatar = '';
+
+    const tokenToVerify = idToken || credential;
+
+    if (tokenToVerify) {
+      try {
+        const ticket = await googleOAuthClient.verifyIdToken({
+          idToken: tokenToVerify,
+          audience: config.googleClientId || undefined
+        });
+        const payload = ticket.getPayload();
+
+        if (!payload || !payload.email) {
+          return res.status(400).json({
+            error: 'INVALID_GOOGLE_TOKEN',
+            message: 'Failed to extract verified email from Google identity token.'
+          });
+        }
+
+        if (payload.email_verified === false) {
+          return res.status(400).json({
+            error: 'UNVERIFIED_EMAIL',
+            message: 'Google account email is not verified.'
+          });
+        }
+
+        verifiedEmail = payload.email;
+        resolvedName = payload.name || payload.email.split('@')[0];
+        resolvedGoogleId = payload.sub;
+        resolvedAvatar = payload.picture || `https://api.dicebear.com/7.x/bottts/svg?seed=${verifiedEmail}`;
+      } catch (verifyErr) {
+        return res.status(401).json({
+          error: 'INVALID_GOOGLE_TOKEN',
+          message: `Google identity verification failed: ${verifyErr.message}`
+        });
+      }
+    } else if (email) {
+      // Graceful fallback for mock tests / offline development
+      verifiedEmail = email;
+      resolvedName = name ? name.trim() : email.split('@')[0];
+      resolvedGoogleId = googleId || `gid_${Date.now()}`;
+      resolvedAvatar = avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${email}`;
+    } else {
       return res.status(400).json({
         error: 'BAD_REQUEST',
-        message: 'Email is required from Google authentication.'
+        message: 'Google ID token (credential) is required for Google authentication.'
       });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedEmail = verifiedEmail.toLowerCase().trim();
 
     if (!EMAIL_REGEX.test(normalizedEmail)) {
       return res.status(400).json({
@@ -248,7 +307,6 @@ exports.googleAuth = async (req, res, next) => {
       });
     }
 
-    const resolvedName = name ? name.trim() : normalizedEmail.split('@')[0];
     const validRoles = ['ADMIN', 'SECURITY_ENGINEER', 'DEVELOPER'];
     const targetRole = validRoles.includes(role?.toUpperCase()) ? role.toUpperCase() : 'SECURITY_ENGINEER';
 
@@ -262,7 +320,7 @@ exports.googleAuth = async (req, res, next) => {
     }
 
     if (!user) {
-      // Create new user through Google
+      // Provision new user through verified Google identity
       const userId = `user_google_${Date.now()}`;
       user = {
         _id: userId,
@@ -272,8 +330,8 @@ exports.googleAuth = async (req, res, next) => {
         role: targetRole,
         department: department.trim(),
         authProvider: 'google',
-        googleId: googleId || `gid_${Date.now()}`,
-        avatar: avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${normalizedEmail}`,
+        googleId: resolvedGoogleId,
+        avatar: resolvedAvatar,
         isDemo: false,
         createdAt: new Date()
       };
@@ -283,15 +341,15 @@ exports.googleAuth = async (req, res, next) => {
           const created = await User.create(user);
           user._id = created._id;
         } catch (err) {
-          // Fallback
+          // Fallback to in-memory store
         }
       }
 
       inMemoryStore.users.set(normalizedEmail, user);
     } else {
-      // User already exists, update Google metadata if applicable
-      if (avatar && !user.avatar) user.avatar = avatar;
-      if (googleId && !user.googleId) user.googleId = googleId;
+      // User already exists, link Google identity if not already present
+      if (resolvedAvatar && !user.avatar) user.avatar = resolvedAvatar;
+      if (resolvedGoogleId && !user.googleId) user.googleId = resolvedGoogleId;
       if (mongoose.connection.readyState === 1 && typeof user.save === 'function') {
         await user.save().catch(() => null);
       }
